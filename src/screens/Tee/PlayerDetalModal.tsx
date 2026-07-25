@@ -2,73 +2,39 @@ import {
   StyleSheet,
   Text,
   View,
-  TextInput,
-  Pressable,
-  KeyboardAvoidingView,
-  Keyboard,
   FlatList,
-  Alert,
 } from "react-native";
-import React, { useEffect } from "react";
-import RNModal from "react-native-modal";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import React from "react";
 import { FONT_FAMILY } from "../../util/colors";
+import UniversalModal from "../../components/UniversalModal";
+import { useAppTheme } from "../../theme/AppThemeProvider";
 
-const PlayerDetalModal = ({ visible, onDismiss, buddy, sessionName }) => {
+const PlayerDetalModal = ({ visible, onDismiss, buddy }:{ visible:boolean, onDismiss:()=>void, buddy :any}) => {
 
-
-
+const {colors}=useAppTheme()
 
   return (
-    <RNModal
-      isVisible={visible}
-      collapsable={true}
-      swipeDirection={["down"]}
-      coverScreen={false}
-      onDismiss={onDismiss}
-      style={{ margin: 0 }}
-      onBackdropPress={onDismiss}
-      avoidKeyboard={false}
-      backdropColor="rgba(0, 0, 0, 0.5)"
+    <UniversalModal
+      visible={visible}
+      setVisible={onDismiss}
+     isFull={true}
+     title="Players Details"
     >
-      <Pressable
-        onPress={onDismiss}
-        style={{
-          backgroundColor: "white",
-          alignSelf: "center",
-          margin: 10,
-          padding: 10,
-          borderRadius: 20,
-        }}
-      >
-        <Icon name="close" size={24} color="red" />
-      </Pressable>
-
-      <View style={styles.modalContent}>
-        <Text style={[styles.name, { margin: 10, textAlign: "center" }]}>
-          {buddy?.group_name}
-        </Text>
-        <Text style={[styles.name, { margin: 10, textAlign: "center" }]}>
-          Session:{' '}
-        {sessionName}
-        </Text>
         <FlatList
           data={buddy || []}
-          style={{ flexGrow: 0 }}
           renderItem={({ item, index }) => (
-            <View style={styles.card}>
-              <Text style={styles.name}>Player {index + 1}:</Text>
-              <Text style={{color:'grey',fontFamily:FONT_FAMILY.normal}}>Player Name: <Text style={styles.name}>{item.DisplayName}</Text></Text>
+            <View style={[styles.card,{backgroundColor:colors.border}]}>
+              <Text style={[styles.name,{color:colors.secondary}]}>Player {index + 1}:</Text>
+              <Text style={{color:colors.placeholder,fontFamily:FONT_FAMILY.normal}}>Player Name: <Text style={[styles.name,{color:colors.text}]}>{item.DisplayName}</Text></Text>
 
-              <Text style={{color:'grey',fontFamily:FONT_FAMILY.normal}}>Member Id: <Text style={styles.name}>{item.MemberID}</Text></Text>
+              <Text style={{color:colors.placeholder,fontFamily:FONT_FAMILY.normal}}>Member Id: <Text style={[styles.name,{color:colors.text}]}>{item.MemberID}</Text></Text>
             </View>
           )}
           keyExtractor={(item) => item?.id?.toString()}
         />
 
-      </View>
     
-    </RNModal>
+    </UniversalModal>
   );
 };
 
@@ -123,7 +89,7 @@ const styles = StyleSheet.create({
   placeholderStyle: { color: "grey" },
   card: {
     margin: 10,
-    backgroundColor: "#f0f0f0",
+    
     padding: 10,
     borderRadius: 10,
   },

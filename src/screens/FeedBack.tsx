@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
+  View,
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
 import ShimmerPlaceholder from "react-native-shimmer-placeholder";
@@ -15,8 +16,7 @@ import { useSelector } from "react-redux";
 import Header from "../components/Header";
 import { javascriptGet, javascriptPost } from "../util/api";
 import { FONT_FAMILY } from "../util/colors";
-
-/* ================= TYPES ================= */
+import { useAppTheme } from "../theme/AppThemeProvider";
 
 interface FeedbackCategory {
   id: number;
@@ -35,33 +35,26 @@ interface RootState {
   };
 }
 
-/* ================= COMPONENT ================= */
-
 const FeedbackScreen: React.FC = () => {
   const userData = useSelector((state: RootState) => state.auth);
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [feedbackTypes, setFeedbackTypes] = useState<FeedbackType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
-
   const [selectedType, setSelectedType] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [description, setDescription] = useState<string>("");
 
-  useEffect(() => {
-    loadFeedbackTypes();
-  }, []);
-
-  /* ================= API ================= */
-
-  const loadFeedbackTypes = async () => {
+  const loadFeedbackTypes = useCallback(async () => {
+   
     try {
       const response = await javascriptGet({
         path: "member/feedback/types-with-categories",
         body: {},
         Token: userData?.token,
       });
-console.log( response, '---------------------- response ---------------------');
       if (response?.status) {
         setFeedbackTypes(response.data);
         setSelectedType(response.data?.[0]?.id ?? null);
@@ -73,7 +66,11 @@ console.log( response, '---------------------- response ---------------------');
     } finally {
       setLoading(false);
     }
-  };
+  }, [userData?.token]);
+
+  useEffect(() => {
+    loadFeedbackTypes();
+  }, [loadFeedbackTypes]);
 
   const submitFeedback = async () => {
     if (!selectedType) return Alert.alert("Validation", "Please select feedback type");
@@ -95,7 +92,6 @@ console.log( response, '---------------------- response ---------------------');
 
       if (response?.status) {
         Alert.alert("Thank You", response.message);
-        setSelectedType(null);
         setSelectedCategory(null);
         setDescription("");
       } else {
@@ -108,345 +104,222 @@ console.log( response, '---------------------- response ---------------------');
     }
   };
 
-  const categoriesForSelectedType: FeedbackCategory[] =
-    selectedType
-      ? feedbackTypes.find(t => t.id === selectedType)?.categories || []
-      : [];
-
-  /* ================= UI ================= */
+ const categoriesForSelectedType = useMemo(() => {
+  if (!selectedType) return [];
 
   return (
-    <View style={{ flex: 1 }}>
+    feedbackTypes.find(t => t.id === selectedType)?.categories || []
+  );
+}, [selectedType, feedbackTypes]);
+const feedbackTypeData = useMemo(
+  () =>
+    feedbackTypes?.map(t => ({
+      label: t.name.toUpperCase(),
+      value: t.id,
+    })),
+  [feedbackTypes]
+);
+  return (
+    <View style={styles.screen}>
       <Header title="Submit Your Feedback" />
 
-      <View style={styles.container}>
-        {loading ? (
-          <>
-            <ShimmerPlaceholder LinearGradient={LinearGradient} style={styles.shimmer} />
-            <ShimmerPlaceholder LinearGradient={LinearGradient} style={styles.shimmer} />
-            <ShimmerPlaceholder LinearGradient={LinearGradient} style={styles.shimmerBig} />
-            <ShimmerPlaceholder LinearGradient={LinearGradient} style={styles.shimmerBtn} />
-          </>
-        ) : (
-          <>
-            {/* Feedback Type */}
-            <Dropdown
-              style={styles.dropdown}
-              data={feedbackTypes?.map(t => ({
-                label: t.name.toUpperCase(),
-                value: t.id,
-              }))}
-              labelField="label"
-              valueField="value"
-              placeholder="Select Feedback Type"
-              value={selectedType}
-              itemTextStyle={{ color: "black" }}
-              selectedTextStyle={styles.selectedText}
-              placeholderStyle={styles.placeholder}
-              onChange={item => {
-                setSelectedType(item.value);
-                setSelectedCategory(null);
-              }}
-            />
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.heroCard}>
+          <Text style={styles.heroTitle}>Help us improve your club experience</Text>
+          <Text style={styles.heroText}>
+            Share an issue, suggestion, or appreciation. The more context you add,
+            the faster the team can act on it.
+          </Text>
+        </View>
 
-            {/* Category */}
-            <Dropdown
-              style={styles.dropdown}
-              data={categoriesForSelectedType}
-              labelField="name"
-              valueField="id"
-              placeholder="Select Category"
-              value={selectedCategory}
-              itemTextStyle={{ color: "black" }}
-              selectedTextStyle={styles.selectedText}
-              placeholderStyle={styles.placeholder}
-              onChange={item => setSelectedCategory(item.id)}
-            />
+        <View style={styles.formCard}>
+          {loading ? (
+            <>
+              <ShimmerPlaceholder LinearGradient={LinearGradient} style={styles.shimmer} />
+              <ShimmerPlaceholder LinearGradient={LinearGradient} style={styles.shimmer} />
+              <ShimmerPlaceholder LinearGradient={LinearGradient} style={styles.shimmerBig} />
+              <ShimmerPlaceholder LinearGradient={LinearGradient} style={styles.shimmerBtn} />
+            </>
+          ) : (
+            <>
+              <Dropdown
+                style={styles.dropdown}
+                containerStyle={styles.dropdownMenu}
+                data={feedbackTypeData}
+                labelField="label"
+                valueField="value"
+                placeholder="Select Feedback Type"
+                value={selectedType}
+                itemTextStyle={styles.dropdownItemText}
+                selectedTextStyle={styles.selectedText}
+                placeholderStyle={styles.placeholder}
+                activeColor={colors.surfaceAlt}
+                onChange={item => {
+                  setSelectedType(item.value);
+                  setSelectedCategory(null);
+                }}
+              />
 
-            {/* Description */}
-            <TextInput
-              style={styles.input}
-              placeholder="Enter Description..."
-              placeholderTextColor="grey"
-              multiline
-              numberOfLines={5}
-              maxLength={150}
-              value={description}
-              onChangeText={setDescription}
-            />
+              <Dropdown
+                style={styles.dropdown}
+                containerStyle={styles.dropdownMenu}
+                data={categoriesForSelectedType}
+                labelField="name"
+                valueField="id"
+                placeholder="Select Category"
+                value={selectedCategory}
+                itemTextStyle={styles.dropdownItemText}
+                selectedTextStyle={styles.selectedText}
+                placeholderStyle={styles.placeholder}
+                activeColor={colors.surfaceAlt}
+                onChange={item => setSelectedCategory(item.id)}
+              />
 
-            {/* Submit */}
-            <TouchableOpacity style={styles.btn} onPress={submitFeedback} disabled={submitting}>
-              {submitting && <ActivityIndicator color="white" style={{ marginRight: 8 }} />}
-              <Text style={styles.btnText}>Submit</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
+              <TextInput
+                style={styles.input}
+                placeholder="Describe the issue or idea..."
+                placeholderTextColor={colors.textMuted}
+                multiline
+                numberOfLines={6}
+                maxLength={250}
+                value={description}
+                onChangeText={setDescription}
+                textAlignVertical="top"
+              />
+
+              <Text style={styles.charCount}>{description.length}/250</Text>
+
+              <TouchableOpacity
+                style={styles.btn}
+                onPress={submitFeedback}
+                disabled={submitting}
+              >
+                {submitting && (
+                  <ActivityIndicator color={colors.onPrimary} style={styles.loader} />
+                )}
+                <Text style={styles.btnText}>Submit Feedback</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </ScrollView>
     </View>
   );
 };
 
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    scrollContent: {
+      padding: 16,
+      paddingBottom: 32,
+    },
+    heroCard: {
+      borderRadius: 24,
+      padding: 20,
+      backgroundColor: colors.primary,
+      marginBottom: 16,
+    },
+    heroTitle: {
+      color: colors.onPrimary,
+      fontFamily: FONT_FAMILY.bold,
+      fontSize: 20,
+    },
+    heroText: {
+      marginTop: 8,
+      color: colors.surfaceAlt,
+      fontFamily: FONT_FAMILY.normal,
+      fontSize: 13,
+      lineHeight: 20,
+    },
+    formCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 24,
+      padding: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    dropdown: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      padding: 12,
+      borderRadius: 14,
+      marginBottom: 15,
+    },
+    dropdownMenu: {
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    dropdownItemText: {
+      color: colors.text,
+      fontFamily: FONT_FAMILY.normal,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      padding: 14,
+      color: colors.text,
+      backgroundColor: colors.background,
+      minHeight: 130,
+      marginBottom: 8,
+      fontFamily: FONT_FAMILY.normal,
+    },
+    btn: {
+      backgroundColor: colors.background,
+      padding: 15,
+      borderRadius: 14,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: 12,
+      
+    },
+    btnText: {
+      color: colors.onPrimary,
+      fontFamily: FONT_FAMILY.bold,
+      fontSize: 16,
+    },
+    loader: {
+      marginRight: 8,
+    },
+    selectedText: {
+      color: colors.text,
+      fontFamily: FONT_FAMILY.normal,
+    },
+    placeholder: {
+      color: colors.textMuted,
+      fontFamily: FONT_FAMILY.normal,
+    },
+    charCount: {
+      alignSelf: "flex-end",
+      color: colors.textMuted,
+      fontFamily: FONT_FAMILY.normal,
+      fontSize: 11,
+    },
+    shimmer: {
+      height: 50,
+      borderRadius: 10,
+      marginBottom: 15,
+    },
+    shimmerBig: {
+      height: 130,
+      borderRadius: 10,
+      marginBottom: 20,
+    },
+    shimmerBtn: {
+      height: 50,
+      borderRadius: 10,
+    },
+  });
+
 export default FeedbackScreen;
-
-/* ================= STYLES ================= */
-
-const styles = StyleSheet.create({
-  container: {
-    padding: 20,
-  },
-  dropdown: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 15,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#bbb",
-    borderRadius: 10,
-    padding: 12,
-    color: "black",
-    height: 110,
-    textAlignVertical: "top",
-    marginBottom: 20,
-  },
-  btn: {
-    backgroundColor: "#0066FF",
-    padding: 15,
-    borderRadius: 10,
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  btnText: {
-    color: "white",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-  selectedText: {
-    color: "black",
-    fontFamily: FONT_FAMILY.normal,
-  },
-  placeholder: {
-    color: "grey",
-  },
-
-  /* Shimmer */
-  shimmer: {
-    height: 50,
-    borderRadius: 10,
-    marginBottom: 15,
-  },
-  shimmerBig: {
-    height: 110,
-    borderRadius: 10,
-    marginBottom: 20,
-  },
-  shimmerBtn: {
-    height: 50,
-    borderRadius: 10,
-  },
-});
-
-// import React, { useEffect, useState } from "react";
-// import {
-//   View,
-//   Text,
-//   TextInput,
-//   TouchableOpacity,
-//   StyleSheet,
-//   Alert,
-//   ActivityIndicator,
-// } from "react-native";
-// import { Dropdown } from "react-native-element-dropdown";
-// import { useSelector } from "react-redux";
-// import { javascriptGet, javascriptPost } from "../util/api";
-// import Header from "../components/Header";
-// import { FONT_FAMILY } from "../util/colors";
-
-// const FeedbackScreen = () => {
-//   const [feedbackTypes, setFeedbackTypes] = useState(null);
-//   const [loading, setLoading] = useState(true);
-
-//   const [selectedType, setSelectedType] = useState(null);
-//   const [selectedCategory, setSelectedCategory] = useState(null);
-//   const [description, setDescription] = useState("");
-
-//   const userData = useSelector((state) => state.auth);
-//   useEffect(() => {
-//     loadFeedbackTypes();
-//   }, []);
-
-//   // 🔵 Fetch Types + Categories (ONE API)
-//   const loadFeedbackTypes = async () => {
-//     try {
-//       const apiRequestObject = {
-//         path: "member/feedback/types-with-categories",
-//         body: {},
-//         Token: userData?.token,
-//       };
-
-//       const response = await javascriptGet(apiRequestObject);
-  
-//       if (response.status) {
-//         setFeedbackTypes(response.data);
-//         setSelectedType(response.data[0]?.id ||null)
-//       } else {
-//         Alert.alert("Error", response.message || "Unable to load feedback types");
-//       }
-//     } catch (err) {
-//       console.log("Error Loading Feedback Types:", err);
-//       Alert.alert("Error", "Failed to load data.");
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-//   // 🔵 Submit Feedback
-//   const submitFeedback = async () => {
-//     if (!selectedType) return Alert.alert("Please select feedback type");
-//     if (!selectedCategory) return Alert.alert("Please select category");
-//     if (!description.trim()) return Alert.alert("Please enter description");
-
-//     const body = {
-//       type_id: selectedType,
-//       category_id: selectedCategory,
-//       description: description,
-//     };
-
-//     try {
-//       const apiRequestObject = {
-//         path: "member/feedback/submit",
-//         body: body,
-//         Token: userData?.token,
-//       };
-// setLoading(true)
-// console.log( apiRequestObject, '---------------------- apiRequestObject ---------------------');
-//       const response = await javascriptPost(apiRequestObject);
-//       console.log( response, '---------------------- response ---------------------');
-// setLoading(false)
-//       if (response.status===true) {
-//           Alert.alert("Thank You!", response.message);
-
-//         // reset form
-//         setSelectedType(null);
-//         setSelectedCategory(null);
-//         setDescription("");
-//       } else {
-//         Alert.alert("Error", response.message || "Submission failed");
-//       }
-//     } catch (err) {
-//       console.log("Submit Error:", err);
-//       Alert.alert("Error", "Something went wrong.");
-//     }
-//   };
-
-//   const categoriesForSelectedType =
-//     selectedType && feedbackTypes
-//       ? feedbackTypes.find((t) => t.id === selectedType)?.categories || []
-//       : [];
-
-//   return (
-//     <View>
-//       <Header title={"Submit Your Feedback"} />
-
-//       <View style={styles.container}>
-//           <>
-//             {/* Type Dropdown */}
-//             <Dropdown
-//               style={styles.dropdown}
-//               data={
-//                 feedbackTypes?.map((t) => ({
-//                   label: t.name.toUpperCase(),
-//                   value: t.id,
-//                 })) || []
-//               }
-//               selectedTextStyle={{
-//                 color: "black",
-//                 fontFamily: FONT_FAMILY.normal,
-//               }}
-              
-//               placeholderStyle={{ color: "grey" }}
-//               labelField="label"
-//               valueField="value"
-//                itemTextStyle={{ color: "black" }}
-//               placeholder="Select Feedback Type"
-//               value={selectedType}
-//               onChange={(item) => {
-//                 setSelectedType(item.value);
-//                 setSelectedCategory(null);
-//               }}
-//             />
-
-           
-//               <Dropdown
-//                 style={styles.dropdown}
-//                  placeholderStyle={{ color: "grey" }}
-//                 data={categoriesForSelectedType}
-//                 labelField="name"
-//                 valueField="id"
-//                 selectedTextStyle={{
-//                   color: "black",
-//                   fontFamily: FONT_FAMILY.normal,
-//                 }}
-//                 placeholder="Select Category"
-//                 itemTextStyle={{ color: "black" }}
-//                 value={selectedCategory}
-//                 onChange={(item) => setSelectedCategory(item.id)}
-//               />
-
-//             {/* Description */}
-//             <TextInput
-//               style={styles.input}
-//               placeholder="Enter Description..."
-//               placeholderTextColor="grey"
-//               multiline
-//               numberOfLines={5}
-//               maxLength={150}
-//               value={description}
-//               returnKeyType="done"
-//               onSubmitEditing={submitFeedback}
-//               onChangeText={setDescription}
-//             />
-
-//             {/* Submit */}
-//             <TouchableOpacity   style={styles.btn} onPress={submitFeedback}>
-//              {loading && <ActivityIndicator color={'white'} style={{marginRight:10}}/>}
-//               <Text style={styles.btnText}>Submit</Text>
-//             </TouchableOpacity>
-//           </>
-//       </View>
-//     </View>
-//   );
-// };
-
-// export default FeedbackScreen;
-
-// const styles = StyleSheet.create({
-//   container: { padding: 20 },
-//   dropdown: {
-//     borderWidth: 1,
-//     borderColor: "#ccc",
-//     padding: 12,
-//     borderRadius: 10,
-//     marginBottom: 15,
-//   },
-//   input: {
-//     borderWidth: 1,
-//     borderColor: "#bbb",
-//     color:'black',
-//     borderRadius: 10,
-//     padding: 12,
-//     textAlignVertical: "top",
-//     marginBottom: 20,
-//     height: 110,
-//   },
-//   btn: {
-//     backgroundColor: "#0066FF",
-//     padding: 15,
-//     borderRadius: 10,
-//     justifyContent: "center",
-//     flexDirection:'row'
-//   },
-//   btnText: { color: "white", fontWeight: "bold", fontSize: 16 },
-// });

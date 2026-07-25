@@ -1,10 +1,7 @@
 import {StyleSheet} from 'react-native';
-import {
-  DARK_BLUE,
-  FONT_FAMILY,
-  GREY_COLOR,
-  PRIMARY_BUTTON_BLUE,
-} from '../util/colors';
+import { useAppTheme } from '../theme/AppThemeProvider';
+import { DARK_BLUE, FONT_FAMILY, GREY_COLOR, PRIMARY_BUTTON_BLUE ,} from '../util/colors';
+
 
 export const Loginstyles = StyleSheet.create({
   container: {

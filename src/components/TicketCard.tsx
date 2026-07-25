@@ -1,127 +1,193 @@
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
-import QuantityCounter from "./QuantityCounter";
-import { FONT_FAMILY } from "../util/colors";
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 
-export default function TicketCard({ data, quantity, onChange,onlyVip }: any) {
+import QuantityCounter from './QuantityCounter';
+import { FONT_FAMILY } from '../util/colors';
+import { useAppTheme } from '../theme/AppThemeProvider';
 
+type Props = {
+  data: any;
+  quantity: number;
+  onChange: (quantity: number) => void;
+};
+
+const TicketCard: React.FC<Props> = ({ data, quantity, onChange }) => {
+  const { colors,resolvedMode } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const soldOut = Boolean(data?.sold_out);
+  const isComplimentary = Number(data?.price || 0) === 0;
 
   return (
-    <View style={[styles.card, data.sold_out && styles.disabled]}>
-      <View style={styles.row}>
-        <View>
-          <View style={styles.rowstart}>
-            <Text style={styles.title}>{data.title}</Text>
-            {/* <Icon name="date-range" size={20} color={"#135bec"} style={{marginRight:8}}/> */}
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+          opacity: soldOut ? 0.6 : 1,
+        },
+      ]}
+    >
+      <LinearGradient
+                 colors={resolvedMode === 'dark'
+      ? ['#020617', '#0F172A', '#1E293B']
+      : ['#1E293B', '#334155', '#475569']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.hero}
+      >
+               <View style={{ padding: 22, overflow: 'hidden' }}>
+
+       
+        <View style={styles.heroHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>{data?.title}</Text>
+            {/* <Text style={styles.description}>
+              {data?.description || 'Event access pass'}
+            </Text> */}
           </View>
-          <View style={styles.rowstart}>
-            {/* <Icon name="location-pin" size={20} color={"#135bec"} style={{marginRight:8}} /> */}
-            <Text style={styles.desc}>{data.description}</Text>
+
+          <View style={styles.priceBadge}>
+            <Text style={styles.priceText}>
+              {soldOut ? 'Sold out' : `Rs. ${Number(data?.price || 0).toFixed(0)}`}
+            </Text>
           </View>
-          {data.max && <Text style={styles.max}>Max {data.max} per order</Text>}
         </View>
-     
 
-        {data.sold_out ? (
-          <Text
-            style={{
-              backgroundColor: "lightblue",
-              fontFamily: FONT_FAMILY.bold,
-              color: "blue",
-              textAlign: "center",
-              padding: 6,
-              borderRadius: 7,
-            }}
-          >
-            Sold Out
+        <View style={styles.metaRow}>
+          <View style={styles.metaChip}>
+            <Text style={styles.metaLabel}>Type</Text>
+            <Text style={styles.metaValue}>
+              {String(data?.type || 'ticket').toUpperCase()}
+            </Text>
+          </View>
+          <View style={styles.metaChip}>
+            <Text style={styles.metaLabel}>Limit</Text>
+            <Text style={styles.metaValue}>{data?.max || 0}</Text>
+          </View>
+          <View style={styles.metaChip}>
+            <Text style={styles.metaLabel}>Access</Text>
+            <Text style={styles.metaValue}>
+              {isComplimentary ? 'Free' : 'Paid'}
+            </Text>
+          </View>
+        </View>
+         </View>
+      </LinearGradient>
+
+      <View style={styles.body}>
+        {isComplimentary ? (
+          <Text style={[styles.note, { color: colors.success }]}>
+            Complimentary eligibility is already applied in the total.
           </Text>
-        ) : (
-          <Text style={styles.price}>₹{Number(data.price).toFixed(2)}</Text>
-        )}
-      </View>
-   {data.complimentary && (
-  <Text style={{ color: "green", fontSize: 12 }}>
-    Complimentary
-  </Text>
-)}
-      <View style={styles.divider} />
+        ) : null}
+        {data?.max ? (
+          <Text style={[styles.note, { color: colors.warning }]}>
+            Maximum {data.max} allowed for this pass type.
+          </Text>
+        ) : null}
 
-      <QuantityCounter
-        value={quantity}
-        max={data.max}
-        disabled={data.sold_out}
-        onChange={onChange}
-      />
+        <View style={styles.divider} />
+
+        <QuantityCounter
+          value={quantity}
+          max={data?.max}
+          disabled={soldOut}
+          onChange={onChange}
+        />
+      </View>
     </View>
   );
-}
-const styles = StyleSheet.create({
-  /* 🔹 Card Container */
-  card: {
-    backgroundColor: "#ffffff",
-    borderRadius: 14,
-    padding: 16,
-    marginHorizontal: 16,
-    marginTop: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  rowstart: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  /* 🔹 Disabled / Sold Out */
-  disabled: {
-    opacity: 0.5,
-  },
+};
 
-  /* 🔹 Top Row */
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
+const createStyles = (colors: {
+  background: string;
+  border: string;
+  onPrimary: string;
+  primary: string;
+  secondary: string;
+  surface: string;
+  text: string;
+  textMuted: string;
+  warning: string;
+  success: string;
+}) =>
+  StyleSheet.create({
+    card: {
+      marginHorizontal: 16,
+      marginTop: 14,
+      borderRadius: 24,
+      overflow: 'hidden',
+      borderWidth: 1,
+    },
+    hero: {
+      // padding: 18,
+    },
+    heroHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+    },
+    title: {
+      color: colors.onPrimary,
+      fontSize: 18,
+      fontFamily: FONT_FAMILY.bold,
+    },
+    description: {
+      marginTop: 6,
+      color: `${colors.onPrimary}DE`,
+      fontSize: 13,
+      lineHeight: 18,
+      fontFamily: FONT_FAMILY.normal,
+    },
+    priceBadge: {
+      backgroundColor: 'rgba(255,255,255,0.16)',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 14,
+    },
+    priceText: {
+      color: colors.onPrimary,
+      fontSize: 14,
+      fontFamily: FONT_FAMILY.semiBold,
+    },
+    metaRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 16,
+    },
+    metaChip: {
+      flex: 1,
+      backgroundColor: 'rgba(255,255,255,0.12)',
+      borderRadius: 16,
+      padding: 10,
+    },
+    metaLabel: {
+      color: `${colors.onPrimary}B8`,
+      fontSize: 11,
+      fontFamily: FONT_FAMILY.normal,
+      textTransform: 'uppercase',
+    },
+    metaValue: {
+      color: colors.onPrimary,
+      marginTop: 4,
+      fontSize: 13,
+      fontFamily: FONT_FAMILY.semiBold,
+    },
+    body: {
+      padding: 16,
+    },
+    note: {
+      fontSize: 12,
+      lineHeight: 17,
+      fontFamily: FONT_FAMILY.normal,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 14,
+    },
+  });
 
-  /* 🔹 Title */
-  title: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
-    fontFamily: FONT_FAMILY.normal,
-  },
-
-  /* 🔹 Description */
-  desc: {
-    fontSize: 13,
-    color: "#6b7280",
-    marginTop: 4,
-    maxWidth: 220,
-    fontFamily: FONT_FAMILY.normal,
-  },
-
-  /* 🔹 Max Text */
-  max: {
-    marginTop: 6,
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#f97316", // orange highlight
-    fontFamily: FONT_FAMILY.semiBold,
-  },
-
-  /* 🔹 Price */
-  price: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#135bec",
-    fontFamily: FONT_FAMILY.semiBold,
-  },
-
-  /* 🔹 Divider */
-  divider: {
-    height: 1,
-    backgroundColor: "#e5e7eb",
-    marginVertical: 14,
-  },
-});
+export default TicketCard;

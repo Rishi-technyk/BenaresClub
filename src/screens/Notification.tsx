@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import moment from 'moment';
-import { DARK_BLUE, FONT_FAMILY } from '../util/colors';
+import { FONT_FAMILY } from '../util/colors';
 import { useSelector } from 'react-redux';
 import LinearGradient from 'react-native-linear-gradient';
 import { createShimmerPlaceholder } from 'react-native-shimmer-placeholder';
@@ -13,6 +13,8 @@ import { javascriptGet } from '../util/api';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../navigation/AppDrawer';
 import { RootState } from '../store/store';
+import { useAppTheme } from '../theme/AppThemeProvider';
+
 
 const ShimmerPlaceholder = createShimmerPlaceholder(LinearGradient);
 type Props = NativeStackScreenProps<AppStackParamList, 'Notification'>;
@@ -22,8 +24,11 @@ const NotificationListScreen: React.FC<Props> = ({ navigation, route }) => {
   const [lastPage, setLastPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const { colors } = useAppTheme();
+
+
   const token = useSelector((state: RootState) => state.auth.token);
-  const fetchNotifications = async (pageNumber = 1) => {
+  const fetchNotifications = useCallback(async (pageNumber = 1) => {
     try {
       if (pageNumber === 1) setInitialLoading(true);
       else setLoadingMore(true);
@@ -50,10 +55,10 @@ const NotificationListScreen: React.FC<Props> = ({ navigation, route }) => {
       setInitialLoading(false);
       setLoadingMore(false);
     }
-  };
+  }, [token]);
   useEffect(() => {
     fetchNotifications(1);
-  }, []);
+  }, [fetchNotifications]);
   const loadMore = () => {
     if (page < lastPage && !loadingMore) {
       fetchNotifications(page + 1);
@@ -63,6 +68,7 @@ const NotificationListScreen: React.FC<Props> = ({ navigation, route }) => {
     fetchNotifications(1);
   };
 
+  const styles = createStyles(colors);
   useEffect(() => {
     if (route.params?.id) {
       const notificationId = route.params.id;
@@ -75,8 +81,29 @@ const NotificationListScreen: React.FC<Props> = ({ navigation, route }) => {
         });
       }
     }
-  }, [notificationdata]);
-  console.log( notificationdata, '---------------------- notificationdata ---------------------');
+  }, [navigation, notificationdata, route.params?.id]);
+  const renderSkeleton = () => (
+    <FlatList
+      data={[1, 1, 1, 1, 1, 1]}
+      keyExtractor={(_, index) => `notification-skeleton-${index}`}
+      renderItem={() => (
+        <View style={styles.skeletonCard}>
+          <View style={styles.skeletonRow}>
+            <ShimmerPlaceholder style={styles.skeletonImage} />
+            <View style={styles.skeletonContent}>
+              <ShimmerPlaceholder style={styles.skeletonLine} />
+              <ShimmerPlaceholder style={styles.skeletonLine} />
+              <ShimmerPlaceholder style={styles.skeletonLine} />
+              <View style={styles.skeletonMetaRow}>
+                <ShimmerPlaceholder width={70} style={styles.skeletonMeta} />
+                <ShimmerPlaceholder width={70} style={styles.skeletonMeta} />
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
+    />
+  );
   const renderItem = ({ item }) => (
     <Card
       onPress={() =>
@@ -84,7 +111,7 @@ const NotificationListScreen: React.FC<Props> = ({ navigation, route }) => {
       }
       style={styles.mainView}
     >
-      <View style={{ flex: 1, flexDirection: 'row' }}>
+      <View style={{ flex: 1, flexDirection: 'row',}}>
         <Image
           source={{
             uri: item?.image,
@@ -101,7 +128,7 @@ const NotificationListScreen: React.FC<Props> = ({ navigation, route }) => {
               {item?.title}
             </Text>
             <View>
-              <Icon name="keyboard-arrow-right" color={'black'} size={25} />
+              <Icon name="keyboard-arrow-right" color={colors.text} size={25} />
             </View>
           </View>
           <Text style={styles.seeText} numberOfLines={2}>
@@ -115,13 +142,13 @@ const NotificationListScreen: React.FC<Props> = ({ navigation, route }) => {
             }}
           >
             <View style={{ flexDirection: 'row', flex: 1 }}>
-              <Icon name="calendar-month" color={DARK_BLUE} size={17} />
+              <Icon name="calendar-month" color={colors.textMuted} size={17} />
               <Text style={styles.dateText}>
                 {moment(item?.date).format('DD MMM YYYY')}
               </Text>
             </View>
             <View style={{ flexDirection: 'row', flex: 1 }}>
-              <Icon name="access-time-filled" color={DARK_BLUE} size={17} />
+              <Icon name="access-time-filled" color={colors.primary} size={17} />
 
               <Text style={styles.dateText}>
                 {moment(item?.time, 'HH:mm:ss').format('h:mm A')}
@@ -153,7 +180,7 @@ const NotificationListScreen: React.FC<Props> = ({ navigation, route }) => {
         }
         ListEmptyComponent={
           initialLoading ? (
-            emptyList()
+            renderSkeleton()
           ) : (
             <View style={styles.noNotificationContainer}>
               <Text style={styles.noNotificationText}>No record found.</Text>
@@ -164,38 +191,21 @@ const NotificationListScreen: React.FC<Props> = ({ navigation, route }) => {
     </View>
   );
 };
-const emptyList = () => (
-  <FlatList
-    data={[1, 1, 1, 1, 1, 1]}
-    renderItem={() => (
-      <View
-        style={[styles.mainView, { marginHorizontal: 10, borderRadius: 20 }]}
-      >
-        <View style={{ flex: 1, alignItems: 'center', flexDirection: 'row' }}>
-          <ShimmerPlaceholder style={styles.imgStyle} />
-          <View style={{ flex: 1, alignItems: 'flex-start', marginLeft: 10 }}>
-            <ShimmerPlaceholder style={{ margin: 5 }} />
-            <ShimmerPlaceholder style={{ margin: 5 }} />
-            <ShimmerPlaceholder style={{ margin: 5 }} />
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-around',
-              }}
-            >
-              <ShimmerPlaceholder width={70} style={{ margin: 5 }} />
-              <ShimmerPlaceholder width={70} style={{ margin: 5 }} />
-            </View>
-          </View>
-        </View>
-      </View>
-    )}
-  />
-);
-const styles = StyleSheet.create({
+const createStyles = (colors: {
+  background: string;
+  primary: string;
+  onPrimary: string;
+  surface: string;
+  surfaceAlt: string;
+  text: string;
+  textMuted: string;
+  border: string;
+  success: string;
+}) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: colors.background,
+
   },
   noNotificationContainer: {
     flex: 1,
@@ -204,14 +214,14 @@ const styles = StyleSheet.create({
   },
   noNotificationText: {
     fontFamily: FONT_FAMILY.semiBold,
-    color: 'grey',
+    color: colors.textMuted,
     fontSize: 16,
   },
   notificationItem: {
     flexDirection: 'row',
     marginBottom: 15,
     padding: 10,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: colors.surface ,
     borderRadius: 5,
   },
   body: {
@@ -240,7 +250,9 @@ const styles = StyleSheet.create({
     flex: 1,
     margin: 10,
     padding: 10,
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
+    borderWidth:0.6,
+    borderColor: colors.border,
   },
   imgStyle: {
     height: 'auto',
@@ -254,7 +266,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontFamily: FONT_FAMILY.semiBold,
-    color: 'black',
+    color: colors.text,
     marginBottom: 8,
   },
   rowView: {
@@ -264,13 +276,51 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 13,
     fontFamily: FONT_FAMILY.semiBold,
-    color: DARK_BLUE,
+    color: colors.textMuted,
     marginLeft: 5,
   },
   seeText: {
     fontFamily: FONT_FAMILY.normal,
     fontSize: 15,
-    color: 'grey',
+    color: colors.textMuted,
+  },
+  skeletonCard: {
+    marginHorizontal: 10,
+    borderRadius: 20,
+    flex: 1,
+    margin: 10,
+    padding: 10,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  skeletonRow: {
+    flex: 1,
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  skeletonImage: {
+    height: 'auto',
+    width: '40%',
+    resizeMode: 'cover',
+    minHeight: 120,
+    borderRadius: 10,
+    marginRight: 10,
+  },
+  skeletonContent: {
+    flex: 1,
+    alignItems: 'flex-start',
+    marginLeft: 10,
+  },
+  skeletonLine: {
+    margin: 5,
+  },
+  skeletonMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  skeletonMeta: {
+    margin: 5,
   },
 });
 

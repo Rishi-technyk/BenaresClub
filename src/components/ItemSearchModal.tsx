@@ -14,7 +14,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import Icons from 'react-native-vector-icons/Ionicons';
 import {  DARK_BLUE, FONT_FAMILY } from '../util/colors';
 import { useDispatch, useSelector } from 'react-redux';
-// import { addToCart, removeFromCart } from '../store/actions/cartActions';
+import { addToCart, removeFromCart } from '../store/actions/cartActions';
 import { Toast } from 'react-native-toast-notifications';
 import { DOMAIN } from '../util/constant';
 import UniversalModal from './UniversalModal';
@@ -59,13 +59,13 @@ const ItemSearchModal: React.FC<ItemSearchModalProps> = ({
 }) => {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const cart = useSelector(
-    state =>
-      state.cart.cart[
-        `${member?.MemberId}/${tableData?.location_name}/${tableData?.table_name}` ||
-          undefined
-      ] || [],
-  );
+const cartKey = `${member?.MemberId || ''}/${
+  tableData?.location_name || ''
+}/${tableData?.table_name || ''}`;
+
+const cart = useSelector(
+  state => state?.cart?.cart?.[cartKey] ?? [],
+);
   const Modifiers = useSelector(state => state.auth.user?.Modifiers);
   const dispatch = useDispatch();
   const [openItemModal, setOpenItemModal] = useState(null);

@@ -1,605 +1,721 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   FlatList,
-  Image,
-  LayoutAnimation,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-} from "react-native";
-import _ from "lodash";
-import React, { useEffect, useState } from "react";
-import { usePlayers, usePlayersQuery } from "../../services/Activity/FacilityService";
-import { useSelector } from "react-redux";
-import { ENDPOINT,  } from "../../util/constant";
-import { Toast } from "react-native-toast-notifications";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import Icons from "react-native-vector-icons/AntDesign";
-import {
-  DARK_BLUE,
-  LIGHT_BLUE,
-  LIGHT_GREEN,
-  LIGHT_RED,
-  FONT_FAMILY,
-  SECONDARY_COLOR,
-} from "../../util/colors";
-import Header from "../../components/Header";
-import { createShimmerPlaceholder } from "react-native-shimmer-placeholder";
-import LinearGradient from "react-native-linear-gradient";
-import { javascriptPost } from "../../util/api";
-import UniversalModal from "../../components/UniversalModal";
-import NewButton from "../../components/Button";
-import { ActivityIndicator, Switch } from "react-native-paper";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { AppStackParamList } from "../../navigation/AppDrawer";
-import InvoiceStyles from "../../Styles/InvoiceStyle";
+} from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import { createShimmerPlaceholder } from 'react-native-shimmer-placeholder';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import StarIcon from 'react-native-vector-icons/AntDesign';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useSelector } from 'react-redux';
 
-type Props=NativeStackScreenProps<AppStackParamList,'Players'>
+import Header from '../../components/Header';
+import BookingHeroCard from '../../components/booking/BookingHeroCard';
+import EmptyStateCard from '../../components/booking/EmptyStateCard';
+import AppAlertModal from '../../components/feedback/AppAlertModal';
+import { useAppAlert } from '../../hooks/useAppAlert';
+import UniversalModal from '../../components/UniversalModal';
+import NewButton from '../../components/Button';
+import { usePlayers, usePlayersQuery } from '../../services/Activity/FacilityService';
+import { javascriptPost } from '../../util/api';
+import { ENDPOINT } from '../../util/constant';
+import { FONT_FAMILY } from '../../util/colors';
+import { AppStackParamList } from '../../navigation/AppDrawer';
+import { RootState } from '../../store/store';
+import { useAppTheme } from '../../theme/AppThemeProvider';
+
+type Props = NativeStackScreenProps<AppStackParamList, 'Players'>;
+
+type PlayerForm = {
+  id?: number | string;
+  is_update?: boolean;
+  name: string;
+  mobile: string;
+  email: string;
+};
 
 const ShimmerPlaceholder = createShimmerPlaceholder(LinearGradient);
-const Players:React.FC<Props> = ({navigation}) => {
-  const userData = useSelector((state) => state.auth);
-  const [players, setPlayers] = useState([]);
-  const [searchText, setSearchText] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState(searchText);
+
+const initialFormState: PlayerForm = {
+  name: '',
+  mobile: '',
+  email: '',
+};
+
+const Players: React.FC<Props> = () => {
+  const userData = useSelector((state: RootState) => state.auth);
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { alertState, hideAlert, showAlert } = useAppAlert();
+
+  const [searchText, setSearchText] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [loading,setLoading]=useState(false)
-  const [PlayerType, setPlayerType] = useState([
-    { id: 1, title: "Favorite", is_active: false },
-    { id: 2, title: "Non-member", is_active: false },
-    { id: 3, title: "Member", is_active: false },
+  const [saving, setSaving] = useState(false);
+  const [playerForm, setPlayerForm] = useState<PlayerForm>(initialFormState);
+  const [playerFilters, setPlayerFilters] = useState([
+    { id: 1, title: 'Favorite', is_active: false },
+    { id: 2, title: 'Non-member', is_active: false },
+    { id: 3, title: 'Member', is_active: false },
   ]);
-  const { playersQuery } = usePlayersQuery(userData,PlayerType[0].is_active,PlayerType[1].is_active,PlayerType[2].is_active);
-  
-  const handleSearch = (text) => {
-    setSearchText(text);
-  };
-  const [addNewPlayer, setAddNewPlayer] = useState({
-    name: "",
-    mobile: "",
-    email: "",
-    
-  });
-  const handlePlayerChange = (value, label) => {
-    setAddNewPlayer((prev) => ({ ...prev, [label]: value }));
-  };
-  const handleAddNewGuest = async () => {
-    if (!addNewPlayer.name.trim()) {
-      Alert.alert("Name is required");
-      return;
+
+  const { playersQuery } = usePlayersQuery(
+    userData,
+    playerFilters[0].is_active,
+    playerFilters[1].is_active,
+    playerFilters[2].is_active,
+  );
+  const { guestQuery } = usePlayers(1, debouncedSearch, null, userData);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchText.trim());
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [searchText]);
+
+  const savedPlayers = useMemo(() => {
+    if (playersQuery?.data?.status && Array.isArray(playersQuery?.data?.data)) {
+      return playersQuery.data.data;
+    }
+
+    return [];
+  }, [playersQuery?.data]);
+console.log( playersQuery?.data, '---------------------- playersQuery?.data ---------------------');
+  const searchedPlayers = useMemo(() => {
+    const searchData = guestQuery?.data?.data?.data;
+    return Array.isArray(searchData) ? searchData : [];
+  }, [guestQuery?.data]);
+
+  const favoriteCount = useMemo(
+    () => savedPlayers.filter((item: any) => Number(item?.is_favorite) === 1).length,
+    [savedPlayers],
+  );
+
+  const activeFilterCount = useMemo(
+    () => playerFilters.filter(item => item.is_active).length,
+    [playerFilters],
+  );
+
+  const openCreateModal = useCallback(() => {
+    setPlayerForm(initialFormState);
+    setShowModal(true);
+  }, []);
+
+  const openEditModal = useCallback((item: any) => {
+    setPlayerForm({
+      id: item.id,
+      is_update: true,
+      name: item.name || '',
+      mobile: item.mobile || '',
+      email: item.email || '',
+    });
+    setShowModal(true);
+  }, []);
+
+  const validatePlayerForm = useCallback(() => {
+    if (!playerForm.name.trim()) {
+      showAlert({
+        title: 'Name required',
+        message: 'Please enter the player name before saving.',
+        tone: 'warning',
+      });
+      return false;
     }
 
     const mobileRegex = /^[0-9]{10}$/;
-    if (!mobileRegex.test(addNewPlayer.mobile)) {
-      Alert.alert("Enter a valid 10-digit mobile number");
-      return;
+    if (!mobileRegex.test(playerForm.mobile)) {
+      showAlert({
+        title: 'Invalid mobile number',
+        message: 'Please enter a valid 10-digit mobile number.',
+        tone: 'warning',
+      });
+      return false;
     }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(addNewPlayer.email)) {
-      Alert.alert("Enter a valid email address");
+    if (!emailRegex.test(playerForm.email)) {
+      showAlert({
+        title: 'Invalid email address',
+        message: 'Please enter a valid email address.',
+        tone: 'warning',
+      });
+      return false;
+    }
+
+    return true;
+  }, [playerForm.email, playerForm.mobile, playerForm.name, showAlert]);
+
+  const refreshSavedPlayers = useCallback(() => {
+    playersQuery.refetch();
+    if (debouncedSearch) {
+      guestQuery.refetch();
+    }
+  }, [debouncedSearch, guestQuery, playersQuery]);
+
+  const handleSavePlayer = useCallback(async () => {
+    if (!validatePlayerForm()) {
       return;
     }
-    
-    const apiobject = {
-      path: addNewPlayer.is_update
-        ? ENDPOINT.update_activity_guest + addNewPlayer.id
-        : ENDPOINT.create_activity_guest,
-      body: {
-        name: addNewPlayer.name,
-        email: addNewPlayer.email,
-        mobile: addNewPlayer.mobile,
-        occupant_id: 2,
-      },
-      Token: userData?.token,
-    };
-    setLoading(true)
-    const response = addNewPlayer.is_update
-      ? await javascriptPost(apiobject)
-      : await javascriptPost(apiobject);
-      console.log( response, '---------------------- response ---------------------');
-   setLoading(false)
-    if (response.success) {
-      setAddNewPlayer({
-        name: "",
-        email: "",
-        mobile: "",
-      });
-      setShowModal(false);
 
-      Toast.show(response.message, {
-        type: "success",
+    setSaving(true);
+
+    try {
+      const response = await javascriptPost({
+        path: playerForm.is_update
+          ? ENDPOINT.update_activity_guest + playerForm.id
+          : ENDPOINT.create_activity_guest,
+        body: {
+          name: playerForm.name,
+          email: playerForm.email,
+          mobile: playerForm.mobile,
+          occupant_id: 2,
+        },
+        Token: userData?.token,
       });
-      playersQuery.refetch();
-    }
-    if (!response.success) {
-      // Loop through the message object and show an alert for each error
-      for (let field in response.message) {
-        response.message[field].forEach((error) => {
-          Alert.alert(` ${error}`);
+console.log( response, '---------------------- response ---------------------');
+      if (response?.success || response?.status) {
+        setShowModal(false);
+        setPlayerForm(initialFormState);
+        refreshSavedPlayers();
+        showAlert({
+          title: playerForm.is_update ? 'Player updated' : 'Player added',
+          message: response?.message || 'Player details have been saved successfully.',
+          tone: 'success',
         });
+        return;
       }
+let message = 'Unable to save player details right now.';
+
+if (typeof response?.message === 'string') {
+  message = response.message;
+} else if (
+  response?.message &&
+  typeof response.message === 'object'
+) {
+  message = Object.values(response.message)
+    .flat()
+    .join('\n');
+}
+
+      showAlert({
+        title: 'Save failed',
+        message,
+        tone: 'danger',
+      });
+    } catch (error) {
+      showAlert({
+        title: 'Save failed',
+        message: 'Something went wrong while saving the player.',
+        tone: 'danger',
+      });
+    } finally {
+      setSaving(false);
     }
-  };
-  useEffect(() => {
-    fetch;
-    if (playersQuery.isSuccess) {
-      if (playersQuery.data.status) {
-        setPlayers(playersQuery.data.data);
-      } else {
-        Toast.show(playersQuery.data.message, {
-          type: "danger",
-        });
+  }, [playerForm, refreshSavedPlayers, showAlert, userData?.token, validatePlayerForm]);
+
+  const updatePlayerAction = useCallback(async (item: any, action: 'Like' | 'Delete') => {
+    try {
+      const response = await javascriptPost({
+        body: {
+          type: action,
+          id: item.id,
+        },
+        path: ENDPOINT.editPlayer,
+        Token: userData?.token,
+      });
+
+      if (response?.status) {
+        refreshSavedPlayers();
+        return;
       }
-    }
-    if (playersQuery.isError) {
-      Toast.hideAll();
-      Toast.show(playersQuery.error.message, {
-        type: "danger",
+
+      showAlert({
+        title: 'Action unavailable',
+        message: response?.message || 'We could not update this player right now.',
+        tone: 'warning',
+      });
+    } catch (error) {
+      showAlert({
+        title: 'Action failed',
+        message: 'Something went wrong while updating this player.',
+        tone: 'danger',
       });
     }
-  }, [
-    playersQuery.isSuccess,
-    playersQuery.isError,
-    playersQuery.error,
-    playersQuery.data,
-  ]);
+  }, [refreshSavedPlayers, showAlert, userData?.token]);
 
-  const { guestQuery } = usePlayers(1, debouncedSearch, null, userData);
-  useEffect(() => {
-    const handler = _.debounce(() => {
-      setDebouncedSearch(searchText);
-    }, 500);
+  const confirmDelete = useCallback((item: any) => {
+    showAlert({
+      title: 'Remove player',
+      message: `Do you want to remove ${item?.name || 'this player'} from your saved list?`,
+      tone: 'warning',
+      primaryLabel: 'Remove',
+      secondaryLabel: 'Cancel',
+      onPrimaryPress: () => updatePlayerAction(item, 'Delete'),
+    });
+  }, [showAlert, updatePlayerAction]);
 
-    handler();
+  const toggleFilter = useCallback((id: number) => {
+    setPlayerFilters(prev =>
+      prev.map(item =>
+        item.id === id ? { ...item, is_active: !item.is_active } : item,
+      ),
+    );
+  }, []);
 
-    return () => handler.cancel();
-  }, [searchText]);
-  const emptyList = () => (
-    <FlatList
-      data={[...Array(4).keys()]}
-      renderItem={() => (
-        <View
-          style={[styles.mainView, { marginHorizontal: 10, borderRadius: 20 }]}
-        >
-          <View style={{ flex: 1 }}>
-            <View style={{ flex: 1 }}>
-              <ShimmerPlaceholder
-                shimmerStyle={{ borderRadius: 10 }}
-                style={{ margin: 5, height: 70, width: "auto" }}
-              />
-              <ShimmerPlaceholder
-                shimmerStyle={{ borderRadius: 10 }}
-                style={{ margin: 5, height: 70, width: "auto" }}
-              />
+  const renderSavedPlayer = ({ item }: { item: any }) => (
+    <View style={styles.playerCard}>
+      <View style={styles.playerHeader}>
+        <View style={styles.avatarWrap}>
+          <Text style={styles.avatarLabel}>
+            {(item?.name || 'P').trim().charAt(0).toUpperCase()}
+          </Text>
+        </View>
+
+        <View style={styles.playerInfo}>
+          <Text style={styles.playerName}>{item?.name || 'Player'}</Text>
+          <Text style={styles.playerMeta}>
+            {Number(item?.occupant_id) === 1
+              ? item?.player_memberId || 'Member'
+              : 'Non-member'}
+          </Text>
+        </View>
+
+        <TouchableOpacity onPress={() => updatePlayerAction(item, 'Like')} style={styles.starButton}>
+          <StarIcon
+            name={Number(item?.is_favorite) === 1 ? 'star' : 'staro'}
+            size={18}
+            color={Number(item?.is_favorite) === 1 ? '#f59e0b' : colors.textMuted}
+          />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.detailRow}>
+        <Icon name="email-outline" size={16} color={colors.textMuted} />
+        <Text style={styles.detailText}>{item?.email || 'Email not available'}</Text>
+      </View>
+
+      <View style={styles.detailRow}>
+        <Icon name="phone-outline" size={16} color={colors.textMuted} />
+        <Text style={styles.detailText}>{item?.mobile || 'Mobile not available'}</Text>
+      </View>
+
+      <View style={styles.actionRow}>
+        <TouchableOpacity style={styles.secondaryAction} onPress={() => openEditModal(item)}>
+          <Icon name="pencil-outline" size={16} color={colors.primary} />
+          <Text style={styles.secondaryActionText}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.dangerAction} onPress={() => confirmDelete(item)}>
+          <Icon name="trash-can-outline" size={16} color={colors.danger} />
+          <Text style={styles.dangerActionText}>Remove</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderSearchResult = ({ item }: { item: any }) => (
+    <View style={styles.searchResultCard}>
+      <View style={styles.searchResultTextWrap}>
+        <Text style={styles.searchResultName}>{item?.DisplayName?.trim() || 'Player'}</Text>
+        <Text style={styles.searchResultSubtitle}>
+          {Number(item?.occupant_id) === 2 ? 'Non-member' : item?.MemberID || 'Member'}
+        </Text>
+      </View>
+      <Text style={styles.chargeText}>Rs. {item?.charge || 0}</Text>
+    </View>
+  );
+
+  const renderSkeleton = () => (
+    <View style={styles.skeletonWrap}>
+      {[1, 2, 3].map(item => (
+        <View key={item} style={styles.playerCard}>
+          <View style={styles.playerHeader}>
+            <ShimmerPlaceholder style={styles.skeletonAvatar} />
+            <View style={styles.flexOne}>
+              <ShimmerPlaceholder style={styles.skeletonLineWide} />
+              <ShimmerPlaceholder style={styles.skeletonLineShort} />
             </View>
           </View>
+          <ShimmerPlaceholder style={styles.skeletonLineWide} />
+          <ShimmerPlaceholder style={styles.skeletonLineWide} />
         </View>
-      )}
-    />
+      ))}
+    </View>
   );
-  const editPlayers = async (item, action) => {
-    if (action === "Edit") {
-      setAddNewPlayer({
-        name: item.name,
-        mobile: item.mobile || "",
-        email: item.email || "",
-        is_update: true,
-        id: item.id,
-      });
-      setShowModal(true);
-      return;
-    }
-    const apiRequestObject = {
-      body: {
-        type: action,
-        id: item.id,
-      },
-      path: ENDPOINT.editPlayer,
-      Token: userData?.token,
-    };
-    const response = await javascriptPost(apiRequestObject);
-   if (response.status) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    playersQuery.refetch()
-    
-    }
-  };
-  const togglePlayerType = async (id) => {
-    const updatedPlayerType = PlayerType.map((item) => {
-      if (item.id === id) {
-        return { ...item, is_active: !item.is_active };
-      }
-      return item;
-    });
-   setPlayerType(updatedPlayerType);
-    // playersQuery.refetch()
-  
-  };
- const renderGuest = ({ item, index }) => {
-   return (
-      <TouchableOpacity
-        activeOpacity={0.9}
-        style={{
-          margin: 10,
-          flexDirection: "row",
-          justifyContent: "space-between",
-        }}
-      >
-        <Text style={styles.price}>
-          {item.DisplayName.trim()}{" "}
-          <Text style={styles.price2}>
-            {" "}
-            ({item.occupant_id == 2 ? "Non Memeber" : item.MemberID}){" "}
-          </Text>
-        </Text>
-        <Text style={styles.price}>₹{item.charge || 0}</Text>
-      </TouchableOpacity>
-    );
-  };
-  const renderPlayers = ({ item, index }) => {
-  return (
-      <View
-        style={{
-          flex: 1,
-          margin: 10,
-          backgroundColor: index % 2 == 0 ? "white" : LIGHT_BLUE,
-          padding: 5,
-          borderRadius: 10,
-          elevation: 0.4,
-          justifyContent: "space-between",
-          flexDirection: "row",
-        }}
-      >
-        <View style={{}}>
-          <Text
-            style={{
-              flex: 1,
-              fontFamily: FONT_FAMILY.bold,
-              color: "rgb(105, 125, 240)",
-              fontSize: 15,
-              // backgroundColor: "rgba(105, 125, 240, 0.1)",
-              padding: 5,
-              borderRadius: 5,
-              alignSelf: "flex-start",
-            }}
-          >
-            {item.name}{" "}
-            <Text
-              style={{
-                fontFamily: FONT_FAMILY.normal,
-                color: "black",
-                // fontSize: 15,
 
-                marginTop: 5,
-              }}
-            >
-              {item.occupant_id == 1 ? item.player_memberId : "Non-member"}
-            </Text>
-          </Text>
-          <View
-            style={{ flexDirection: "row", alignItems: "center", marginTop: 5 }}
-          >
-            <Icon
-              name={"email"}
-              size={20}
-              color={"black"}
-              style={{ alignSelf: "flex-end", marginRight: 5 }}
-            />
-            <Text
-              style={{
-                fontFamily: FONT_FAMILY.normal,
-                color: "grey",
-                fontSize: 15,
-              }}
-            >
-              {item.email}
-            </Text>
-          </View>
-          <View
-            style={{ flexDirection: "row", alignItems: "center", marginTop: 5 }}
-          >
-            <Icon name={"phone"} size={20} color={"black"} />
-            <Text
-              style={{
-                fontFamily: FONT_FAMILY.normal,
-                color: "grey",
-                fontSize: 15,
-              }}
-            >
-              {item.mobile || "N/A"}
-            </Text>
-          </View>
-        </View>
-        <View
-          style={{
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <TouchableOpacity onPress={() => editPlayers(item, "Like")}>
-            <Icons
-              name={item.is_favorite == 1 ? "star" : "staro"}
-              size={20}
-              color={item.is_favorite == 1 ? "orange" : "grey"}
-              style={{ alignSelf: "flex-end", marginTop: 5 }}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: LIGHT_GREEN,
-              padding: 5,
-              borderRadius: 5,
-            }}
-            onPress={() => editPlayers(item, "Edit")}
-          >
-            <Text
-              style={{
-                fontFamily: FONT_FAMILY.normal,
-                color: SECONDARY_COLOR,
-                fontSize: 10,
-              }}
-            >
-              Edit
-            </Text>
-            {/* <Icon name="delete-empty" size={20} color="red" /> */}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: LIGHT_RED,
-              padding: 5,
-              borderRadius: 5,
-            }}
-            onPress={() => editPlayers(item, "Delete")}
-          >
-            <Text
-              style={{
-                fontFamily: FONT_FAMILY.normal,
-                color: "red",
-                fontSize: 10,
-              }}
-            >
-              Remove
-            </Text>
-            {/* <Icon name="delete-empty" size={20} color="red" /> */}
-          </TouchableOpacity>
-
-          {/* <CancelButton text={'Remove'}/> */}
-        </View>
-      </View>
-    );
-  };
   return (
-    <View style={{backgroundColor:'white',flex:1}}>
-      <Header title={"My Players"}>
-        <TouchableOpacity
-          activeOpacity={0.9}
-          style={{
-            borderWidth: 0.8,
-            borderColor: "white",
-            padding: 5,
-            borderRadius: 5,
-          }}
-          onPress={() => {
-            setAddNewPlayer({
-              name: "",
-              mobile: "",
-              email: "",
-            });
-            setShowModal(true);
-          }}
-        >
-          <Text style={{ fontFamily: FONT_FAMILY.normal, color: "white" }}>
-            Add Player
-          </Text>
+    <View style={styles.screen}>
+      <Header title="My Guests">
+        <TouchableOpacity style={styles.headerAction} onPress={openCreateModal}>
+          <Icon name="plus" size={16} color={colors.onPrimary} />
+          <Text style={styles.headerActionText}>Add Guest</Text>
         </TouchableOpacity>
       </Header>
 
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          backgroundColor: LIGHT_BLUE,
-          borderRadius: 10,
-          borderWidth: 0.5,
-          margin: 10,
-          borderColor: DARK_BLUE,
-        }}
-      >
-        <Icon
-          name="magnify"
-          size={20}
-          color={DARK_BLUE}
-          style={{ left: 10 }}
-        />
-        <TextInput
-          placeholder="Search"
-          placeholderTextColor={'grey'}
-          style={styles.input}
-          maxLength={40}
-          onChangeText={handleSearch}
-          cursorColor={SECONDARY_COLOR}
-        />
-       {guestQuery.isLoading && <ActivityIndicator
-        color={SECONDARY_COLOR}
-        size={15}
-        style={{marginRight:10}}
+      <FlatList
+        data={debouncedSearch ? searchedPlayers : savedPlayers}
+        keyExtractor={(item, index) => String(item?.id || item?.MemberID || index)}
+        renderItem={debouncedSearch ? renderSearchResult : renderSavedPlayer}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+        ListHeaderComponent={
+          <View>
+            <BookingHeroCard
+              eyebrow="Activity Directory"
+              title="Guest Manager"
+              // subtitle="Manage saved activity players, mark favorites, and quickly search the shared player directory before a booking."
+              status={`${savedPlayers.length} saved`}
+              statusTone="neutral"
+              meta={[
+                { label: 'Favorites', value: String(favoriteCount), tone: 'success' },
+                // { label: 'Total', value: String(savedPlayers.length) },
+              ]}
+            />
 
-        />}
-      </View>
-
-      {searchText ? (
-        <FlatList
-          data={guestQuery?.data?.data?.data || []}
-          renderItem={renderGuest}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 20 }}
-          numColumns={1}
-          ListEmptyComponent={
-            <Text style={{ textAlign: "center", marginTop: 10 }}>
-              No Player Found.
-            </Text>
-          }
-        />
-      ) : (
-        <FlatList
-          data={players || []}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderPlayers}
-          
-          ListEmptyComponent={
-            playersQuery.isLoading ?
-            emptyList: <View
-                            style={{
-                              flex:1,
-                              alignItems: "center",
-                              justifyContent: "center",
-                              
-                            }}
-                          >
-                            <Image
-                              style={InvoiceStyles.alertImage}
-                              source={require("../../../assets/images/norecord.png")}
-                            />
-                            <Text style={InvoiceStyles.noRecord}>
-                              No players found.
-                            </Text>
-                          </View>}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 20,flexGrow:1 }}
-          numColumns={1}
-          ListHeaderComponent={
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                paddingHorizontal: 10,
-                paddingVertical: 5,
-                justifyContent: "space-between",
-              }}
-            >
-              {PlayerType.map((item, index) => (
-                <View
-                  key={index}
-                  style={{
-                    alignItems: "center",
-                    marginRight: 10,
-                  }}
-                >
-                  <Switch
-                    key={index}
-                    color={DARK_BLUE}
-                    value={item.is_active}
-                    onValueChange={() => togglePlayerType(item.id)}
-                  />
-                  <Text
-                    style={{
-                      fontFamily: FONT_FAMILY.normal,
-                      color: "black",
-                      marginLeft: 5,
-                    }}
-                  >
-                    {item.title}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          }
-        />
-      )}
+          </View>
+        }
+        ListEmptyComponent={
+          playersQuery.isLoading || guestQuery.isLoading ? (
+            renderSkeleton()
+          ) : (
+            <EmptyStateCard
+              title={  'No Active slots available for this activity.'}
+              description={
+               'Please check back later or contact support for assistance.'
+              }
+            />
+          )
+        }
+      />
 
       <UniversalModal
-        isFull={true}
+        isFull
         visible={showModal}
         onClose={() => setShowModal(false)}
-        title={addNewPlayer.is_update ? "Edit Player" : "Add Player"}
+        title={playerForm.is_update ? 'Edit Guest' : 'Add Guest'}
         setVisible={setShowModal}
       >
-        {/* Add Player Form */}
-        <View style={{ padding: 30, flex: 1 }}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>
+            {playerForm.is_update ? 'Update guest details' : 'Create a new saved guest'}
+          </Text>
+          <Text style={styles.modalSubtitle}>
+            These values are posted to the existing activity guest APIs, so the backend and booking flows stay unchanged.
+          </Text>
+
           <TextInput
-            value={addNewPlayer.name}
-            placeholderTextColor="grey"
-            style={styles.dropdown}
-            onChangeText={(text) => handlePlayerChange(text, "name")}
-            placeholder="Enter player name"
-            cursorColor={SECONDARY_COLOR}
+            value={playerForm.name}
+            placeholder="Guest name"
+            placeholderTextColor={colors.placeholder}
+            style={styles.input}
+            onChangeText={text => setPlayerForm(prev => ({ ...prev, name: text }))}
+            cursorColor={colors.primary}
             maxLength={50}
           />
           <TextInput
-            value={addNewPlayer.mobile}
-            placeholderTextColor="grey"
-            style={styles.dropdown}
-            onChangeText={(text) => handlePlayerChange(text, "mobile")}
-            placeholder="Enter player mobile"
-            keyboardType="decimal-pad"
-            cursorColor={SECONDARY_COLOR}
+            value={playerForm.mobile}
+            placeholder="Mobile number"
+            placeholderTextColor={colors.placeholder}
+            style={styles.input}
+            onChangeText={text => setPlayerForm(prev => ({ ...prev, mobile: text }))}
+            keyboardType="number-pad"
+            cursorColor={colors.primary}
             maxLength={10}
           />
           <TextInput
-            value={addNewPlayer.email}
-            cursorColor={SECONDARY_COLOR}
-            placeholderTextColor="grey"
-            style={[styles.dropdown, { marginBottom: 30 }]}
-            onChangeText={(text) => handlePlayerChange(text, "email")}
-            placeholder="Enter player email"
+            value={playerForm.email}
+            placeholder="Email address"
+            placeholderTextColor={colors.placeholder}
+            style={styles.input}
+            onChangeText={text => setPlayerForm(prev => ({ ...prev, email: text }))}
             keyboardType="email-address"
+            cursorColor={colors.primary}
             maxLength={100}
           />
+
           <NewButton
-          loading={loading}
-            onPress={handleAddNewGuest}
-            text={addNewPlayer.is_update ? "Update" : "+ Add"}
+            loading={saving}
+            onPress={handleSavePlayer}
+            text={playerForm.is_update ? 'Update Guest' : 'Add Guest'}
           />
         </View>
       </UniversalModal>
+
+      <AppAlertModal
+        visible={alertState.visible}
+        title={alertState.title}
+        message={alertState.message}
+        tone={alertState.tone}
+        primaryLabel={alertState.primaryLabel}
+        secondaryLabel={alertState.secondaryLabel}
+        onPrimaryPress={() => {
+          alertState.onPrimaryPress?.();
+          hideAlert();
+        }}
+        onSecondaryPress={() => {
+          alertState.onSecondaryPress?.();
+          hideAlert();
+        }}
+        onDismiss={hideAlert}
+      />
     </View>
   );
 };
 
-export default Players;
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    listContent: {
+      paddingBottom: 40,
+    },
+    headerAction: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: `${colors.onPrimary}55`,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 14,
+    },
+    headerActionText: {
+      marginLeft: 6,
+      color: colors.onPrimary,
+      fontFamily: FONT_FAMILY.semiBold,
+      fontSize: 12,
+    },
+    toolsCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 16,
+    },
+    searchWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceAlt,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 14,
+    },
+    searchInput: {
+      flex: 1,
+      paddingVertical: 14,
+      paddingHorizontal: 10,
+      color: colors.text,
+      fontFamily: FONT_FAMILY.normal,
+    },
+    filterRow: {
+      marginTop: 14,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+    },
+    filterChip: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 999,
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    filterChipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    filterChipText: {
+      color: colors.text,
+      fontFamily: FONT_FAMILY.medium,
+      fontSize: 12,
+    },
+    filterChipTextActive: {
+      color: colors.onPrimary,
+    },
+    playerCard: {
+      marginHorizontal: 16,
+      marginBottom: 12,
+      backgroundColor: colors.surface,
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 16,
+    },
+    playerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 14,
+    },
+    avatarWrap: {
+      width: 46,
+      height: 46,
+      borderRadius: 15,
+      backgroundColor: colors.surfaceAlt,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
+    avatarLabel: {
+      color: colors.primary,
+      fontFamily: FONT_FAMILY.bold,
+      fontSize: 18,
+    },
+    playerInfo: {
+      flex: 1,
+    },
+    playerName: {
+      color: colors.text,
+      fontFamily: FONT_FAMILY.bold,
+      fontSize: 16,
+    },
+    playerMeta: {
+      marginTop: 4,
+      color: colors.textMuted,
+      fontFamily: FONT_FAMILY.normal,
+      fontSize: 12,
+    },
+    starButton: {
+      padding: 6,
+    },
+    detailRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    detailText: {
+      marginLeft: 10,
+      flex: 1,
+      color: colors.textMuted,
+      fontFamily: FONT_FAMILY.normal,
+      fontSize: 13,
+    },
+    actionRow: {
+      marginTop: 12,
+      flexDirection: 'row',
+      gap: 10,
+    },
+    secondaryAction: {
+      flex: 1,
+      minHeight: 44,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceAlt,
+    },
+    secondaryActionText: {
+      marginLeft: 6,
+      color: colors.primary,
+      fontFamily: FONT_FAMILY.semiBold,
+      fontSize: 13,
+    },
+    dangerAction: {
+      flex: 1,
+      minHeight: 44,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      borderWidth: 1,
+      borderColor: `${colors.danger}35`,
+      backgroundColor: `${colors.danger}12`,
+    },
+    dangerActionText: {
+      marginLeft: 6,
+      color: colors.danger,
+      fontFamily: FONT_FAMILY.semiBold,
+      fontSize: 13,
+    },
+    searchResultCard: {
+      marginHorizontal: 16,
+      marginBottom: 12,
+      backgroundColor: colors.surface,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    searchResultTextWrap: {
+      flex: 1,
+    },
+    searchResultName: {
+      color: colors.text,
+      fontFamily: FONT_FAMILY.bold,
+      fontSize: 15,
+    },
+    searchResultSubtitle: {
+      marginTop: 4,
+      color: colors.textMuted,
+      fontFamily: FONT_FAMILY.normal,
+      fontSize: 12,
+    },
+    chargeText: {
+      color: colors.primary,
+      fontFamily: FONT_FAMILY.bold,
+      fontSize: 14,
+    },
+    modalContent: {
+      padding: 24,
+      gap: 12,
+    },
+    modalTitle: {
+      color: colors.text,
+      fontFamily: FONT_FAMILY.bold,
+      fontSize: 18,
+    },
+    modalSubtitle: {
+      color: colors.textMuted,
+      fontFamily: FONT_FAMILY.normal,
+      fontSize: 13,
+      lineHeight: 19,
+      marginBottom: 4,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      color: colors.text,
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+      fontFamily: FONT_FAMILY.normal,
+    },
+    skeletonWrap: {
+      paddingHorizontal: 16,
+    },
+    skeletonAvatar: {
+      width: 46,
+      height: 46,
+      borderRadius: 15,
+      marginRight: 12,
+    },
+    skeletonLineWide: {
+      width: '78%',
+      height: 14,
+      borderRadius: 8,
+      marginBottom: 10,
+    },
+    skeletonLineShort: {
+      width: '42%',
+      height: 14,
+      borderRadius: 8,
+    },
+    flexOne: {
+      flex: 1,
+    },
+  });
 
-const styles = StyleSheet.create({
-  dropdown: {
-    borderBottomWidth: 1,
-    borderColor: DARK_BLUE,
-    padding: 10,
-    borderRadius: 10,
-    marginVertical: 10,
-    fontFamily: FONT_FAMILY.normal,
-    color: "black",
-  },
-  mainView: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  imgStyle: {
-    width: 50,
-    height: 100,
-    borderRadius: 25,
-  },
-  input: {
-    flex: 1,
-    padding: 10,
-    fontFamily: FONT_FAMILY.normal,
-    color: "black",
-  },
-    price: {
-      fontSize: 14,
-      fontFamily: FONT_FAMILY.normal,
-      color: DARK_BLUE,
-    },
-    price2: {
-      fontSize: 14,
-      fontFamily: FONT_FAMILY.normal,
-      color: "grey",
-    },
-});
+export default Players;

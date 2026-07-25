@@ -1,5 +1,5 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { AppStackParamList } from '../../navigation/AppDrawer';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSelector } from 'react-redux';
@@ -14,13 +14,15 @@ import moment from 'moment';
 import { useQuery } from '@tanstack/react-query';
 import LinearGradient from 'react-native-linear-gradient';
 import { createShimmerPlaceholder } from 'react-native-shimmer-placeholder';
+import { useAppTheme } from '../../theme/AppThemeProvider';
 
 const ShimmerPlaceholder = createShimmerPlaceholder(LinearGradient);
 type Props = NativeStackScreenProps<AppStackParamList, 'EventsList'>;
 const EventsList: React.FC<Props> = ({ navigation }) => {
   const userData = useSelector((state: RootState) => state.auth);
 
-
+const {colors}=useAppTheme();
+const styles = createStyles(colors);
  const { data: events, isLoading } = useQuery({
   queryKey: ["events"],
   queryFn: async () => {
@@ -32,73 +34,6 @@ const EventsList: React.FC<Props> = ({ navigation }) => {
   },
   staleTime: 1000 * 60 * 10, // 10 minutes
 });
-  const renderEvents = ({ item }) => {
-    return (
-      <Pressable
-      onPress={()=>navigation.navigate('Event',{data:item.id})}
-       style={[styles.card]}>
-        <View style={styles.row}>
-          <Image
-            source={{ uri: `${DOMAIN.IMG}event/${item.image}` }}
-            height={100}
-            width={100}
-            borderRadius={10}
-          />
-          <View style={{ marginLeft: 10 }}>
-            <View style={styles.rowstart}>
-              <Text style={styles.price} numberOfLines={2}>{item.name}</Text>
-            </View>
-            <View style={[styles.rowstart, { marginTop: 5 }]}>
-              <Icon
-                name="location-pin"
-                size={20}
-                color={'grey'}
-                style={{ marginRight: 4 }}
-              />
-              <Text style={styles.title}>{item.location}</Text>
-              {/* <Text style={styles.desc}>{item.location}</Text> */}
-            </View>
-            <View style={styles.rowstart}>
-              <Icon
-                name="date-range"
-                size={20}
-                color={'grey'}
-                style={{ marginRight: 5 }}
-              />
-
-              <Text style={styles.meta}>
-                {moment(item.start_date).format('DD, MMM yy [at] h:m A')}
-              </Text>
-            </View>
-          </View>
-        </View>
-      </Pressable>
-    );
-  };
-  return (
-    <View style={{flex:1}}>
-      <Header title="Events" />
-      <FlatList data={events|| []}
-     ListEmptyComponent={!isLoading ?emptyList(): 
-<View
-            style={{
-              marginTop: 50,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Image
-              source={require('../../../assets/images/norecord.png')}
-              style={{ height: 100, width: 100 }}
-            />
-            <Text style={styles.empty}>No Events available.</Text>
-          </View>
-     }
-       renderItem={renderEvents} />
-    </View>
-  );
-};
-
   const emptyList = () => (
     <FlatList
       data={[1, 1, 1, 1, 1, ]}
@@ -125,13 +60,82 @@ const EventsList: React.FC<Props> = ({ navigation }) => {
       )}
     />
   );
+  const renderEvents = ({ item }) => {
+    return (
+      <Pressable
+      onPress={()=>navigation.navigate('Event',{data:item.id})}
+       style={[styles.card]}>
+        <View style={styles.row}>
+          <Image
+            source={{ uri: item.image }}
+            height={100}
+            width={100}
+            borderRadius={10}
+          />
+          <View style={{ marginLeft: 10 }}>
+            <View style={styles.rowstart}>
+              <Text style={styles.price} numberOfLines={2}>{item.name}</Text>
+            </View>
+            <View style={[styles.rowstart, { marginTop: 5 }]}>
+              <Icon
+                name="location-pin"
+                size={20}
+                color={colors.textMuted}
+                style={{ marginRight: 4 }}
+              />
+              <Text style={styles.title}>{item.location}</Text>
+              {/* <Text style={styles.desc}>{item.location}</Text> */}
+            </View>
+            <View style={styles.rowstart}>
+              <Icon
+                name="date-range"
+                size={20}
+                color={colors.textMuted}
+                style={{ marginRight: 5 }}
+              />
+
+              <Text style={styles.meta}>
+                {moment(item.start_date).format('DD, MMM yy [at] h:m A')}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Pressable>
+    );
+  };
+  return (
+    <View style={{flex:1}}>
+      <Header title="Events" />
+      <FlatList data={events|| []}
+     ListEmptyComponent={isLoading ?emptyList(): 
+<View
+            style={{
+              marginTop: 50,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Image
+              source={require('../../../assets/images/norecord.png')}
+              style={{ height: 100, width: 100 }}
+            />
+            <Text style={styles.empty}>No Events available.</Text>
+          </View>
+     }
+       renderItem={renderEvents} />
+    </View>
+  );
+};
+
+
 
 export default EventsList;
 
-const styles = StyleSheet.create({
-  /* 🔹 Card Container */
+const createStyles = (color) => StyleSheet.create({
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor:color.surface,
+    borderColor: color.border,
+    borderWidth: 1,
     borderRadius: 14,
     padding: 10,
     marginHorizontal: 16,
@@ -145,6 +149,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+
   /* 🔹 Disabled / Sold Out */
   disabled: {
     opacity: 0.5,
@@ -159,10 +164,15 @@ const styles = StyleSheet.create({
   /* 🔹 Title */
   title: {
     fontSize: 16,
-    color: '#111827',
+    color: color.text,
     fontFamily: FONT_FAMILY.normal,
   },
-
+empty:{
+    marginTop: 20,
+    fontSize: 16,
+    color: color.textMuted,
+    fontFamily: FONT_FAMILY.normal,
+},
   /* 🔹 Description */
   desc: {
     fontSize: 13,
@@ -189,6 +199,11 @@ const styles = StyleSheet.create({
     fontFamily: FONT_FAMILY.semiBold,
   },
 
+  meta:{
+    fontSize: 12,
+    color: color.textMuted,
+    fontFamily: FONT_FAMILY.normal,
+  },
   /* 🔹 Divider */
   divider: {
     height: 1,

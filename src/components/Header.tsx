@@ -8,10 +8,11 @@ import {
   Pressable,
 } from "react-native";
 import { useNavigation, NavigationProp } from "@react-navigation/native";
-import { DARK_BLUE, FONT_FAMILY } from "../util/colors";
+import { FONT_FAMILY } from "../util/colors";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import Icons from "react-native-vector-icons/Entypo";
 import DownloadModal from "./DownloadModal";
+import { useAppTheme } from "../theme/AppThemeProvider";
 
 interface HeaderProps {
   title: string;
@@ -20,6 +21,7 @@ interface HeaderProps {
   isDawnload?: boolean;
   children?: ReactNode;
   toHome?: boolean;
+  type?: string;
 }
 
 type NavigationRoutes = {
@@ -35,9 +37,12 @@ const Header: React.FC<HeaderProps> = ({
   isDawnload = false,
   children,
   toHome = false,
+  type,
 }) => {
   const navigation = useNavigation<NavigationProp<NavigationRoutes>>();
   const [visible, setVisible] = useState<boolean>(false);
+  const { colors } = useAppTheme();
+  const styles = createStyles(colors);
 
   return (
     <View style={styles.headercontainer}>
@@ -50,7 +55,7 @@ const Header: React.FC<HeaderProps> = ({
           routes: [{ name: 'Home' }],
         }) : navigation.goBack()}
       >
-        <Icon name="chevron-left" size={20} color="white" />
+        <Icon name="chevron-left" size={20} color={colors.onPrimary} />
         <Text style={styles.title}>{title}</Text>
       </TouchableOpacity>
 
@@ -62,17 +67,16 @@ const Header: React.FC<HeaderProps> = ({
             <Icon
               name="file-download-outline"
               size={25}
-              color="white"
+              color={colors.onPrimary}
               style={{ marginHorizontal: 10 }}
               onPress={() => setVisible(true)}
             />
           )}
-
-          {/* Download Modal */}
+        
           <DownloadModal
             visible={visible}
             setVisible={setVisible}
-            data={title === "Invoice" ? "Credit" : "member"}
+            data={type === "Invoice" ? "Credit" : "member"}
           />
 
           {/* Filter Icon */}
@@ -81,8 +85,7 @@ const Header: React.FC<HeaderProps> = ({
           <Icons
             name="sound-mix"
             size={20}
-            color="white"
-            
+            color={colors.onPrimary}
             />
             </Pressable>
         </View>
@@ -99,13 +102,15 @@ export default Header;
    STYLES
 ----------------------------------------------------- */
 
-const styles = StyleSheet.create({
+const createStyles = (colors: { primary: string; onPrimary: string }) =>
+  StyleSheet.create({
   headercontainer: {
-    backgroundColor: DARK_BLUE,
+    backgroundColor: colors.primary,
     padding: 20,
     paddingBottom: 10,
     flexDirection: "row",
     justifyContent: "space-between",
+    // backgroundColor:'pink',
     elevation: 5,
   },
   button: {
@@ -114,7 +119,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   title: {
-    color: "white",
+    color: colors.onPrimary,
     fontFamily: FONT_FAMILY.normal,
     fontSize: 17,
     marginLeft: 5,
@@ -122,6 +127,8 @@ const styles = StyleSheet.create({
   rightControls: {
     flexDirection: "row",
     alignItems: "center",
+    // backgroundColor:'red',
+    justifyContent:'flex-end'
   },
 });
 

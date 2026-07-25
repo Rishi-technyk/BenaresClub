@@ -60,13 +60,12 @@ const Table :React.FC<Props> = ({ navigation }) => {
       }
     },
   });
-
   // ✅ Validate and navigate to TableOrder screen
   const validateTable = async (Code, MemberProfileID, BillStatus) => {
-    console.log( `validate/table-qr?location=${user.LocationCode}&table=${Code}`, '---------------------- `validate/table-qr?location=${user.LocationCode}&table=${Code}` ---------------------');
+   
     const response = await javascriptGetLocal({
       Token: token,
-      path: `validate/table-qr?location=${user.LocationCode}&table=${Code}`,
+      path: `staff/validate/table?location=${user.LocationCode}&table=${Code}`,
     });
     console.log( response, '---------------------- response ---ddddd-----------------');
     if (response?.status === true) {
@@ -116,7 +115,7 @@ const Table :React.FC<Props> = ({ navigation }) => {
       )}
     />
   );
-
+console.log( Tables?.data?.data, '---------------------- Tables?.data?.data ---------------------');
   return (
     <View style={styles.container}>
       <Header toHome={false} title="Tables">
@@ -195,18 +194,18 @@ const Table :React.FC<Props> = ({ navigation }) => {
                 }
                 style={[
                   styles.tableItem,
-                  i.BillStatus ? styles.availableBg : styles.occupiedBg,
+                  i.MemberProfileID ?   styles.occupiedBg:styles.availableBg,
                 ]}
               >
                 <Ionicons
                   name={i.BillStatus ? "fast-food-outline" : "restaurant-outline"}
                   size={20}
-                  color={i.BillStatus ? "lightgrey" : "red"}
+                  color={ i.MemberProfileID  ?  "red":"lightgrey" }
                 />
                 <Text
                   style={[
                     styles.tableNumber,
-                    { color: i.BillStatus ? "white" : "black" },
+                    { color:  i.MemberProfileID ?   "black":"white" },
                   ]}
                 >
                   {i.TableNo}
@@ -215,12 +214,13 @@ const Table :React.FC<Props> = ({ navigation }) => {
                   style={[
                     styles.tableMember,
                     {
-                      color: i.MemberProfileID ? "#FDA4A4" : "#85EFAD",
-                      fontSize: i.MemberProfileID ? 15 : 10,
+                      color: i.MemberProfileID ? "#1e1b1b" : "#85EFAD",
+                       
+                      fontSize: 10,
                     },
                   ]}
                 >
-                  {i.MemberProfileID || "Available"}
+                  {i.MemberProfileID ?'Occupied': "Available"}
                 </Text>
               </Pressable>
             )}

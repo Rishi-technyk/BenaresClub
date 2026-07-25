@@ -6,19 +6,20 @@ import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { javascriptGet } from '../util/api';
 import { FONT_FAMILY, LIGHT_BLUE } from '../util/colors';
+import { useSelector } from 'react-redux';
 
 const ModifierModal = ({ visible, onClose, onAdd, token,qty }) => {
+  const user=useSelector(state=>state.auth)
     const [Modifiers,setModifiers]=useState([])
-    const fetchModifiers=async()=>{
-      const res=await javascriptGet({path:'get-modifier',body:{}})
-     console.log( res, '---------------------- res ---------------------');
-      setModifiers(res.data)
-    }
+   
     useEffect(()=>{
      
-        fetchModifiers()
+        // fetchModifiers()
+        if(user?.user?.Modifiers){
+         setModifiers(user.user.Modifiers)
+        }
     
-    },[])
+    },[user])
     const [remark,setRemark]=React.useState('');
     const handleAdd=()=>{
        

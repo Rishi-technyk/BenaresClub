@@ -22,6 +22,8 @@ import NewButton from "./Button";
 import { javascriptPostLocal } from "../util/api";
 import { DOMAIN } from "../util/constant";
 import { Toast } from "react-native-toast-notifications";
+import UniversalModal from "./UniversalModal";
+import { navigationRef } from "../navigation/RootNavigation";
 
 
 // ================================
@@ -35,11 +37,14 @@ const getOptions = (
   otpSent,
   errors,
   loading,
-  inputRef
+  memberRef,
+  otpRef,
+  selectedMember
+  
 ) => [
   {
     key: "otp",
-    label: "Verify OTP",
+    label:"Verify OTP",
     icon: DOMAIN.LOCAL + "icon/memberotp.webp",
 
     render: () => (
@@ -47,12 +52,21 @@ const getOptions = (
 
         {/* MEMBER ID */}
         <TextInput
-          ref={inputRef[0]}
+           ref={memberRef}
           maxLength={15}
           keyboardType="default"
           placeholder="Enter Member ID"
           value={formData.member_id}
           editable={!otpSent}
+            returnKeyType={selectedMember ? "next" : "done"}
+  blurOnSubmit={false}
+  onSubmitEditing={() => {
+    if (selectedMember) {
+      handleSendOtp();
+    } else {
+      handleSendOtp();
+    }
+  }}
           onChangeText={(text) => handleFormData(text, "member_id")}
           style={[Loginstyles.textInput, { paddingVertical: 20 }]}
           placeholderTextColor="#363b5d"
@@ -66,7 +80,7 @@ const getOptions = (
           <View style={{ marginVertical: 20 }}>
             <NewButton
               loading={loading}
-              text="Send OTP"
+              text={selectedMember?"Send OTP":'Verify Member'}
               onPress={handleSendOtp}
             />
           </View>
@@ -76,7 +90,10 @@ const getOptions = (
         {otpSent && (
           <>
             <TextInput
-              ref={inputRef[1]}
+                ref={otpRef}
+  returnKeyType="done"
+  blurOnSubmit={false}
+  onSubmitEditing={handleVerifyMember}
               maxLength={6}
               keyboardType="number-pad"
               placeholder="Enter OTP"
@@ -146,11 +163,14 @@ const TableOptions = ({
   });
 
   const [otpSent, setOtpSent] = useState(false);
+  const [memberData,setMemberData]=useState([]);
   const [errors, setErrors] = useState({});
   const [activeOption, setActiveOption] = useState(null);
   const [loading, setLoading] = useState(false);
-
-  const inputRef = [useRef(null), useRef(null)];
+const [selectedMember,setSelectedMember]=useState('')
+  // const inputRef = [useRef(null), useRef(null)];
+  const memberRef = useRef(null);
+const otpRef = useRef(null);
 
 
   // ================================
@@ -177,19 +197,29 @@ const TableOptions = ({
       body: {
         member_id: formData.member_id,
         LocationCode: tableData.LocationCode,
+        memberData:selectedMember
       },
       Token: token,
     };
 
     try {
       const res = await javascriptPostLocal(apiObj);
-
+      console.log( res, '---------------------- res ---------------------');
       if (res.success) {
-        Toast.show("OTP Sent Successfully", { type: "success", duration: 2000 });
+
+        if(res.otp_id){
+ Toast.show("OTP Sent Successfully", { type: "success", duration: 2000 });
         setOtpSent(true);
         setErrors({});
-        setFormData((prev) => ({ ...prev, otp_id: res.otp_id }));
-        inputRef[1].current?.focus();
+        setFormData((prev) => ({ ...prev, otp_id: res.otp_id,member_id:res.member_id }));
+    setTimeout(() => {
+  otpRef.current?.focus();
+}, 200);
+        }
+        else{
+          setMemberData(res.data)
+        }
+       
       } else {
         Toast.show(res.message || "Failed to send OTP", { type: "danger", duration: 2000 });
       }
@@ -295,28 +325,80 @@ const TableOptions = ({
     otpSent,
     errors,
     loading,
-    inputRef
+    memberRef,
+    otpRef,
+    selectedMember
   );
 
 
   // ================================
   // UI
   // ================================
+
   return (
-    <Modal
-      visible={visible}
-      transparent
-      onDismiss={onClose}
-      dismissable={true}
-      contentContainerStyle={{ flex: 1, justifyContent: "flex-end" }}
+    // <Modal
+    //   visible={visible}
+    //   transparent
+    //   onDismiss={onClose}
+    //   dismissable={true}
+    //   contentContainerStyle={{ flex: 1, justifyContent: "flex-end" }}
+    // >
+    <UniversalModal
+    visible={visible}
+    setVisible={()=>navigationRef.current?.goBack()}
+    isFull={true}
+    title="Verify Member"
     >
+      {memberData?.length &&memberData.map(item=>(
+       
+                   <Pressable
+                     style={{
+                      //  flex: 1,
+                       marginLeft: 15,
+                       backgroundColor:selectedMember.name==item.name?'#ddffbc':'#f0f0f0',
+                       padding:10,
+                       borderRadius:10,
+                       marginBottom:10
+                     }}
+                    onPress={() => {
+    setSelectedMember(item);
+
+    setTimeout(() => {
+        memberRef.current?.focus();
+    },100);
+}}
+                   >
+       
+                     <Text style={styles.memberName}>
+                       {item.name}
+                     </Text>
+       
+                     <Text style={styles.memberId}>
+                       {item.memberID}
+                     </Text>
+       
+                     <Text style={styles.memberType}>
+                       Type : {item.type}
+                     </Text>
+       
+                     <Text style={styles.memberMobile}>
+                       Mobile :
+                       {" "}
+                       ******{item.Mobile1?.slice(-4)}
+                     </Text>
+       
+                   </Pressable>
+      ))
+      
+      }
       <KeyboardAwareScrollView
         contentContainerStyle={{
           flexGrow: 1,
-          justifyContent: "flex-end",
+          // justifyContent: "flex-end",
         }}
         enableOnAndroid
-        extraScrollHeight={20}
+    extraScrollHeight={20}
+  keyboardShouldPersistTaps="handled"
       >
         <View style={styles.container}>
 
@@ -369,7 +451,7 @@ const TableOptions = ({
             OPTIONS.find((o) => o.key === activeOption)?.render()}
         </View>
       </KeyboardAwareScrollView>
-    </Modal>
+   </UniversalModal>
   );
 };
 
@@ -412,5 +494,38 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 5,
     marginLeft: 5,
+  },
+
+  memberName: {
+    color: "black",
+    fontSize: 17,
+    fontFamily: FONT_FAMILY.bold,
+  },
+
+  memberId: {
+    color: "grey",
+    marginTop: 3,
+    fontFamily: FONT_FAMILY.normal,
+  },
+
+  memberType: {
+    color: "#1E88E5",
+    marginTop: 5,
+    fontFamily: FONT_FAMILY.semiBold,
+  },
+
+  memberMobile: {
+    color: "grey",
+    marginTop: 3,
+    fontFamily: FONT_FAMILY.normal,
+  },
+
+  sendOtpButton: {
+    backgroundColor: SECONDARY_COLOR,
+    height: 50,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 20,
   },
 });

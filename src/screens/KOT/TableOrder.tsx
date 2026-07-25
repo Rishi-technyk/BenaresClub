@@ -466,9 +466,9 @@ const TableOrder = ({ navigation, route }) => {
                         removeRemark(modifier, itemCode, groups.member.MemberId)
                       );
                     } else {
-                      dispatch(
-                        addRemark(modifier, itemCode, groups.member.MemberId)
-                      );
+                      // dispatch(
+                      //   addRemark(modifier, itemCode, groups.member.MemberId, `${groups?.member?.MemberId}/${tableData.location_name}/${tableData?.table_name}`)
+                      // );
                     }
                   }}
                   onRemove={() => handleRemove(displayItem)}
@@ -525,23 +525,28 @@ const TableOrder = ({ navigation, route }) => {
           dispatch(
             addToCart(
               `${groups?.member?.MemberId}/${tableData?.location_name}/${tableData?.table_name}`,
-              { ...modifierModalItem, discount: tableData?.KOTDiscount || "0" },
+              { ...modifierModalItem, discount: tableData?.KOTDiscount ,  Remarks:modifier|| "0" },
               {
                 ...tableData,
                 card_balance: parseFloat(groups.card_balance),
                 yearCode: groups?.yearCode,
                 qty: 1,
                 activeBill: activeBill,
+              MemberId:groups?.member?.MemberId
               }
             )
           );
-          dispatch(
-            addRemark(
-              modifier,
-              modifierModalItem?.ItemCode,
-              groups.member.MemberId
-            )
-          );
+          // setTimeout(() => {
+          //   dispatch(
+          //   addRemark(
+          //     modifier,
+          //     modifierModalItem?.ItemCode,
+          //     groups.member.MemberId,
+          //      `${groups?.member?.MemberId}/${tableData.location_name}/${tableData?.table_name}`,
+          //   )
+          // );
+          // }, 100);
+          
           setModifierModalItem(null);
         }}
         token={data.token}

@@ -1,605 +1,526 @@
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   LayoutAnimation,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import Header from '../../components/Header';
-import { useSelector } from 'react-redux';
-import {
-  DARK_BLUE,
-  FONT_FAMILY,
-  LIGHT_GREEN,
-  LIGHT_RED,
-  SECONDARY_COLOR,
-} from '../../util/colors';
-import { Card } from 'react-native-paper';
-import { ENDPOINT } from '../../util/constant';
-import moment from 'moment';
-import { FlatList, Pressable, ScrollView } from 'react-native-gesture-handler';
-import UniversalModal from '../../components/UniversalModal';
-import NewButton from '../../components/Button';
-import _ from 'lodash';
-// import PickPlayers from "./PickPlayers";
-import * as api from '../../util/api';
-import { Toast } from 'react-native-toast-notifications';
-import { CustomCheckbox } from '../../components/CustomCheckBox';
-import { Dropdown } from 'react-native-element-dropdown';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { AppStackParamList } from '../../navigation/AppDrawer';
-import { usePlayers } from '../../services/Activity/FacilityService';
-import { RootState } from '../../store/store';
+import { Dropdown } from 'react-native-element-dropdown';
+import moment from 'moment';
+import lodash from 'lodash';
+
+import Header from '../../components/Header';
+import NewButton from '../../components/Button';
 import PickPlayers from './PickPlayers';
+import BookingHeroCard from '../../components/booking/BookingHeroCard';
+import DetailSection from '../../components/booking/DetailSection';
+import AppAlertModal from '../../components/feedback/AppAlertModal';
+import { CustomCheckbox } from '../../components/CustomCheckBox';
+import UniversalModal from '../../components/UniversalModal';
+import { useAppAlert } from '../../hooks/useAppAlert';
+import { useAppTheme } from '../../theme/AppThemeProvider';
+import { usePlayers, usePlayersQuery } from '../../services/Activity/FacilityService';
+import { AppStackParamList } from '../../navigation/AppDrawer';
+import { RootState } from '../../store/store';
+import { useSelector } from 'react-redux';
+import { FONT_FAMILY } from '../../util/colors';
+import { ENDPOINT } from '../../util/constant';
+import * as api from '../../util/api';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'ChoosePlayer'>;
+
+const formatSlotTime = (value: string) => {
+  if (!value) {
+    return 'Time unavailable';
+  }
+
+  const [start, end] = String(value).split(' to ');
+  if (start && end) {
+    return `${moment(start, 'HH:mm').format('hh:mm A')} - ${moment(
+      end,
+      'HH:mm',
+    ).format('hh:mm A')}`;
+  }
+
+  return value;
+};
+
 const ChoosePlayer: React.FC<Props> = ({ route, navigation }) => {
   const userData = useSelector((state: RootState) => state.auth);
-  const params = route.params;
+  const params: any = route.params;
+  const { colors } = useAppTheme();
+  const { alertState, showAlert, hideAlert } = useAppAlert();
+
+  const facility = params?.facility || {};
   const [search, setSearch] = useState('');
-  const [selectedFacility, setSelectedFacility] = useState(null);
-  const [searchPlayer, setSearchPlayer] = useState(null);
-  const [slots, setSlots] = useState(params.slots);
-  const [selectedGameType, setGameType] = useState(null);
-  const facility = params.facility;
+  const [selectedSlot, setSelectedSlot] = useState<any>(null);
+  const [selectedGameType, setSelectedGameType] = useState<any>(null);
+  const [slots, setSlots] = useState<any[]>(params?.slots || []);
+  const [searchPlayer, setSearchPlayer] = useState(false);
   const [agree, setAgree] = useState(false);
   const [showPolicies, setShowPolicies] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState(null);
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [loading, setLoading] = useState(false);
+
   const { guestQuery, gameQuery } = usePlayers(
     1,
     debouncedSearch,
     facility?.id,
     userData,
   );
-  const subTotal = useMemo(() => {
-    // Base amount: facility charge * number of slots
-    const baseAmount = Number(facility.charge || 0) * slots.length;
+  const { playersQuery: playerLibraryQuery } = usePlayersQuery(
+    userData,
+    false,
+    false,
+    false,
+  );
 
-    // Sum of all player charges
-    const extraCharges = slots?.reduce((total, item) => {
-      const playerTotal =
-        item.players?.reduce((acc, player) => {
-          return acc + Number(player?.charge || 0);
-        }, 0) || 0;
+  useEffect(() => {
+    const handler = lodash.debounce(() => setDebouncedSearch(search), 350);
+    handler();
+    return () => handler.cancel();
+  }, [search]);
 
-      return total + playerTotal;
-    }, 0);
+  const slotCount = slots.length;
+  const selectedPlayerCount = useMemo(
+    () =>
+      slots.reduce(
+        (total, item) => total + (Array.isArray(item?.players) ? item.players.length : 0),
+        0,
+      ),
+    [slots],
+  );
 
-    const totalAmount = baseAmount + extraCharges;
-    return Number(totalAmount).toFixed(2);
-  }, [facility.charge, slots]);
+  const baseAmount = useMemo(
+    () => Number(facility?.charge || 0) * slotCount,
+    [facility?.charge, slotCount],
+  );
+
+  const guestTotal = useMemo(
+    () =>
+      slots.reduce((total, item) => {
+        const playerTotal =
+          item?.players?.reduce(
+            (acc: number, player: any) => acc + Number(player?.charge || 0),
+            0,
+          ) || 0;
+        return total + playerTotal;
+      }, 0),
+    [slots],
+  );
+
+  const subTotal = baseAmount + guestTotal;
+  const gstAmount = Number(facility?.GSTper || 0)
+    ? (subTotal * Number(facility?.GSTper || 0)) / 100
+    : 0;
+  const payableAmount = Number(subTotal + gstAmount).toFixed(2);
+
   const handleBookFacility = async () => {
-    Toast.hideAll();
     if (!agree) {
-      Toast.show('Please accept the terms and conditions.', {
-        type: 'warning',
+      showAlert({
+        title: 'Accept terms first',
+        message: 'Please review and accept the booking terms before checkout.',
+        tone: 'warning',
       });
       return;
     }
-    if (slots.length === 0) {
-      Toast.show('Please select at least one slot.', {
-        type: 'warning',
+
+    if (!slotCount) {
+      showAlert({
+        title: 'No slot selected',
+        message: 'Please keep at least one slot in your booking.',
+        tone: 'warning',
       });
       return;
     }
-    if (slots.some(slot => !slot.players)) {
-      Toast.show('Please select at least one player for each slot', {
-        type: 'warning',
-      });
 
+    if (slots.some(item => !Array.isArray(item?.players) || item.players.length === 0)) {
+      showAlert({
+        title: 'Players missing',
+        message: 'Each selected slot must have at least one player.',
+        tone: 'warning',
+      });
       return;
     }
 
-    const guestTotal = slots?.reduce((total, item) => {
-      const playerTotal =
-        item.players?.reduce((acc, player) => {
-          return acc + Number(player?.charge || 0);
-        }, 0) || 0;
-
-      return total + playerTotal;
-    }, 0);
-    const subtotal = Number(facility.charge) + guestTotal;
-    const gstAmount = Number(facility?.GSTper)
-      ? (subtotal * Number(facility.GSTper)) / 100
-      : 0;
-    const totalWithGst = subtotal + gstAmount;
     const apiobject = {
       path: ENDPOINT.book_facilities,
       body: {
         memberId: userData?.user?.MemberID,
         slots,
         session_id: params?.session?.id,
-        facility_id: facility.id,
-        charge: facility.charge,
+        facility_id: facility?.id,
+        charge: facility?.charge,
         guest_total_amount: guestTotal,
         facility_gst_per: facility?.GSTper,
-        facility_gst_amt: Number((subTotal / 100) * facility.GSTper),
+        facility_gst_amt: Number(gstAmount.toFixed(2)),
         game_type_id: selectedGameType?.id || null,
-        payble_amount: Number(
-          (subTotal / 100) * facility.GSTper + Number(subTotal),
-        ),
+        payble_amount: Number(payableAmount),
       },
       Token: userData?.token,
     };
+
     try {
       setLoading(true);
       const response = await api.javascriptPost(apiobject);
-      console.log(
-        response,
-        '---------------------- response ---------------------',
-      );
-
       setLoading(false);
-      if (response?.status && response.data && response.data.order_id) {
-        Toast.show(response?.message, {
-          type: 'success',
-        });
 
-        // navigation.navigate("Home");
+      if (response?.status && response?.data?.order_id) {
         navigation.navigate('UniversalPayment', {
           orderData: response.data,
           type: 'Activity',
         });
-        // setAmount(0);
-        setSlots([]);
-        setSearch('');
-        setAgree(false);
-        setSelectedFacility(null);
-        setSelectedSlot(null);
-        setShowPolicies(false);
-        setSearchPlayer(false);
-        setDebouncedSearch('');
-      } else {
-        Toast.show(response?.message, {
-          type: 'danger',
-        });
+        return;
       }
+
+      showAlert({
+        title: 'Booking unavailable',
+        message: response?.message || 'Unable to reserve the activity right now.',
+        tone: 'danger',
+      });
     } catch (error) {
-      console.log(
-        '\x1b[36m%s\x1b[0m',
-        error,
-        '---------------------- error ---------------------',
-      );
-      Toast.show('Error occurred while booking facility', {
-        type: 'danger',
+      setLoading(false);
+      showAlert({
+        title: 'Booking failed',
+        message: 'A network issue interrupted the activity booking request.',
+        tone: 'danger',
       });
     }
   };
-  const toastRef = useRef(null);
 
-  useEffect(() => {
-    const handler = _.debounce(() => {
-      setDebouncedSearch(search);
-    }, 500);
-
-    handler();
-
-    return () => handler.cancel();
-  }, [search]);
+  const gameTypes = gameQuery?.data?.data?.gameTypes || [];
+  const dropdownContainerStyle = useMemo(
+    () => ({
+      backgroundColor: colors.surface,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+    }),
+    [colors.border, colors.surface],
+  );
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#EEEEEE' }}>
-      <Header title={'Booking Details'} />
-      <ScrollView contentContainerStyle={{ margin: 10, paddingBottom: 20 }}>
-        <Text
-          style={[
-            styles.price,
-            { fontSize: 18, fontFamily: FONT_FAMILY.semiBold },
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Header title="Activity Booking" />
+
+      <ScrollView contentContainerStyle={styles.content}>
+        <BookingHeroCard
+          eyebrow="Activity Checkout"
+          title={facility?.name || 'Facility booking'}
+          subtitle={`${params?.session?.session_name || 'Session'} • ${slotCount} ${
+            slotCount === 1 ? 'slot' : 'slots'
+          } selected`}
+          status={selectedPlayerCount ? 'In progress' : 'Awaiting players'}
+          statusTone={selectedPlayerCount ? 'success' : 'warning'}
+          meta={[
+            { label: 'Base rate', value: `Rs. ${Number(facility?.charge || 0).toFixed(2)}` },
+            { label: 'Players', value: String(selectedPlayerCount) },
+            {
+              label: 'Payable',
+              value: `Rs. ${payableAmount}`,
+              tone: 'neutral',
+            },
           ]}
-        >
-          {slots.length + ` ${slots.length > 1 ? 'Slots' : 'Slot'} Selected`}
-        </Text>
-        <Dropdown
-          style={[styles.dropdown]}
-          placeholderStyle={styles.placeholderStyle}
-          selectedTextStyle={styles.selectedTextStyle}
-          containerStyle={{
-            backgroundColor: 'white',
-            borderRadius: 10,
-            marginTop: 10,
-          }}
-          itemTextStyle={styles.itemContainerStyle}
-          iconStyle={styles.iconStyle}
-          data={gameQuery?.data?.data?.gameTypes || []}
-          maxHeight={300}
-          labelField="name"
-          valueField="id"
-          placeholder={'Select Game Type'}
-          value={selectedGameType?.id}
-          onChange={item => {
-            setGameType(item);
-            setSlots(prev => prev.map(item => ({ ...item, players: null })));
-          }}
-          renderItem={item => (
-            <View style={{ padding: 20 }}>
-              <Text style={{ color: 'black', fontFamily: FONT_FAMILY.normal }}>
-                {item.name} ({item.no_of_players}{' '}
-                {item.no_of_players > 1 ? 'Players' : 'Player'})
-              </Text>
-            </View>
-          )}
         />
 
-        <FlatList
-          contentContainerStyle={{
-            flex: 1,
-            borderRadius: 10,
-            marginVertical: 12,
-          }}
-          key={({ item }) => item.id}
-          scrollEnabled={false}
-          data={slots}
-          renderItem={({ item, index }) => (
-            <View
-              style={{
-                paddingBottom: 10,
-                backgroundColor: 'white',
-                padding: 10,
-                borderRadius: 5,
-                marginBottom: 10,
-              }}
-            >
+        <DetailSection
+          title="Booking setup"
+          subtitle="Choose the game type first so the player count and guest rules stay aligned."
+          delay={40}
+        >
+          <Text style={[styles.fieldLabel, { color: colors.text }]}>Game type</Text>
+          <Dropdown
+            style={[
+              styles.dropdown,
+              { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+            ]}
+            placeholderStyle={[styles.dropdownPlaceholder, { color: colors.textMuted }]}
+            selectedTextStyle={[styles.dropdownValue, { color: colors.text }]}
+            containerStyle={dropdownContainerStyle}
+            itemTextStyle={{ color: colors.text, fontFamily: FONT_FAMILY.normal }}
+            data={gameTypes}
+            maxHeight={280}
+            labelField="name"
+            valueField="id"
+            placeholder="Select game type"
+            value={selectedGameType?.id}
+            onChange={item => {
+              setSelectedGameType(item);
+              setSlots(prev => prev.map(slot => ({ ...slot, players: null })));
+            }}
+            renderItem={item => (
+              <View style={styles.dropdownItem}>
+                <Text style={[styles.dropdownItemText, { color: colors.text }]}>
+                  {item.name}
+                </Text>
+                <Text style={[styles.dropdownItemMeta, { color: colors.textMuted }]}>
+                  {item.no_of_players} {item.no_of_players > 1 ? 'players' : 'player'}
+                </Text>
+              </View>
+            )}
+          />
+        </DetailSection>
+
+        <DetailSection
+          title="Selected slots"
+          subtitle="Each slot needs players before you continue to payment."
+          delay={70}
+        >
+          {slots.map((item, index) => {
+            const players = Array.isArray(item?.players) ? item.players : [];
+            return (
               <View
-                key={index}
+                key={`${item?.day?.id || index}-${item?.time?.slot_id || index}`}
                 style={[
-                  styles.rowCenter,
+                  styles.slotCard,
                   {
-                    justifyContent: 'space-between',
+                    backgroundColor: colors.surfaceAlt,
+                    borderColor: colors.border,
                   },
                 ]}
               >
-                <View>
-                  <Text
-                    style={[styles.price, { fontFamily: FONT_FAMILY.semiBold }]}
-                  >
-                    {facility?.name} ({' '}
-                    {moment(item?.day?.session_date).format('DD-MMMM-YYYY')})
-                  </Text>
-                  <Text
-                    style={[styles.price, { fontFamily: FONT_FAMILY.light }]}
-                  >
-                    {`${moment(item?.time?.name, 'HHmm').format(
-                      'hh:mm A',
-                    )} to ${moment(item?.time?.name.slice(5, 8), 'HHmm').format(
-                      'hh:mm A',
-                    )}`}{' '}
-                  </Text>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text
-                    style={[styles.price, { fontFamily: FONT_FAMILY.bold }]}
-                  >
-                    1 Slot
-                  </Text>
-                  <Text
-                    style={[styles.price, { fontFamily: FONT_FAMILY.normal }]}
-                  >
-                    ₹{facility.charge}
-                  </Text>
-                </View>
-              </View>
-              {Array.isArray(item.players) &&
-                item.players.map((player, index) => (
-                  <View
-                    style={[
-                      styles.rowCenter,
-                      {
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        paddingTop: 5,
-                      },
-                    ]}
-                    key={index}
-                  >
-                    {/* <Text style={styles.price}>Player {index+1}</Text> */}
-
-                    <Text
-                      style={[
-                        styles.price2,
-                        {
-                          textAlign: 'left',
-                          fontFamily: FONT_FAMILY.semiBold,
-                          color: 'black',
-                        },
-                      ]}
-                    >
-                      <Text>
-                        {index + 1}. {player.DisplayName}
-                      </Text>{' '}
-                      (
-                      {player.occupant_id == 2
-                        ? 'Non Memeber'
-                        : player.MemberID}
-                      )
+                <View style={styles.slotHeader}>
+                  <View style={styles.flexOne}>
+                    <Text style={[styles.slotTitle, { color: colors.text }]}>
+                      {moment(item?.day?.session_date).format('ddd, DD MMM YYYY')}
                     </Text>
-                    <Text
-                      style={[styles.price, { fontFamily: FONT_FAMILY.normal }]}
-                    >
-                      ₹{player.charge}
+                    <Text style={[styles.slotMeta, { color: colors.textMuted }]}>
+                      {formatSlotTime(item?.time?.name)}
                     </Text>
                   </View>
-                ))}
-              <View
-                style={{
-                  justifyContent: 'space-between',
-                  flexDirection: 'row',
-                  marginTop: 10,
-                  flex: 1,
-                }}
-              >
-                <Pressable
-                  style={{
-                    backgroundColor: LIGHT_RED,
-                    padding: 8,
-                    borderRadius: 5,
-                    alignSelf: 'flex-start',
-                  }}
-                  onPress={() => {
-                    LayoutAnimation.configureNext({
-                      duration: 300,
-                      create: {
-                        type: LayoutAnimation.Types.linear,
-                        property: LayoutAnimation.Properties.opacity,
-                      },
-                      delete: {
-                        type: LayoutAnimation.Types.linear,
-                        property: LayoutAnimation.Properties.opacity,
-                      },
-                      update: {
-                        type: LayoutAnimation.Types.linear,
-                        property: LayoutAnimation.Properties.opacity,
-                      },
-                    });
+                  <View style={[styles.statusBadge, { backgroundColor: `${colors.primary}14` }]}>
+                    <Text style={[styles.statusText, { color: colors.primary }]}>
+                      {players.length
+                        ? `${players.length} selected`
+                        : 'Players pending'}
+                    </Text>
+                  </View>
+                </View>
 
-                    slots.length !== 1
-                      ? setSlots(slots.filter((_, i) => i !== index))
-                      : navigation.goBack();
-                  }}
-                >
-                  <Text style={{ color: 'red', fontFamily: FONT_FAMILY.bold }}>
-                    Remove Slot
+                <View style={styles.inlineMetrics}>
+                  <View style={[styles.metricTile, { backgroundColor: colors.surface }]}>
+                    <Text style={[styles.metricValue, { color: colors.text }]}>1</Text>
+                    <Text style={[styles.metricLabel, { color: colors.textMuted }]}>slot</Text>
+                  </View>
+                  <View style={[styles.metricTile, { backgroundColor: colors.surface }]}>
+                    <Text style={[styles.metricValue, { color: colors.text }]}>
+                      Rs. {Number(facility?.charge || 0).toFixed(0)}
+                    </Text>
+                    <Text style={[styles.metricLabel, { color: colors.textMuted }]}>facility</Text>
+                  </View>
+                  <View style={[styles.metricTile, { backgroundColor: colors.surface }]}>
+                    <Text style={[styles.metricValue, { color: colors.text }]}>
+                      Rs.{' '}
+                      {players
+                        .reduce((total: number, player: any) => total + Number(player?.charge || 0), 0)
+                        .toFixed(0)}
+                    </Text>
+                    <Text style={[styles.metricLabel, { color: colors.textMuted }]}>players</Text>
+                  </View>
+                </View>
+
+                {players.length ? (
+                  <View style={styles.playerList}>
+                    {players.map((player: any, playerIndex: number) => (
+                      <View
+                        key={`${player?.MemberID || player?.DisplayName}-${playerIndex}`}
+                        style={[
+                          styles.playerCard,
+                          {
+                            backgroundColor: colors.surface,
+                            borderColor: colors.border,
+                          },
+                        ]}
+                      >
+                        <View style={styles.flexOne}>
+                          <Text style={[styles.playerName, { color: colors.text }]}>
+                            {player.DisplayName}
+                          </Text>
+                          <Text style={[styles.playerMeta, { color: colors.textMuted }]}>
+                            {player.occupant_id === 2 ? 'Non-member' : player.MemberID}
+                          </Text>
+                        </View>
+                        <Text style={[styles.playerCharge, { color: colors.primary }]}>
+                          Rs. {Number(player?.charge || 0).toFixed(0)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+                    No players added yet for this slot.
                   </Text>
-                </Pressable>
+                )}
 
-                {item.players?.length > 0 ? (
+                <View style={styles.slotActions}>
                   <Pressable
-                    style={{
-                      backgroundColor: LIGHT_RED,
-                      padding: 8,
-                      borderRadius: 5,
-                      alignSelf: 'flex-start',
-                    }}
                     onPress={() => {
-                      LayoutAnimation.configureNext({
-                        duration: 300,
-                        create: {
-                          type: LayoutAnimation.Types.linear,
-                          property: LayoutAnimation.Properties.opacity,
-                        },
-                        delete: {
-                          type: LayoutAnimation.Types.linear,
-                          property: LayoutAnimation.Properties.opacity,
-                        },
-                        update: {
-                          type: LayoutAnimation.Types.linear,
-                          property: LayoutAnimation.Properties.opacity,
-                        },
-                      });
-
-                      setSlots(prev => {
-                        const updatedSlots = [...prev];
-                        updatedSlots[index] = {
-                          ...updatedSlots[index],
-                          players: null,
-                        };
-                        return updatedSlots;
-                      });
+                      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                      slotCount !== 1
+                        ? setSlots(slots.filter((slotItem, slotIndex) => slotIndex !== index))
+                        : navigation.goBack();
                     }}
+                    style={[
+                      styles.secondaryAction,
+                      { backgroundColor: `${colors.danger}14`, borderColor: `${colors.danger}30` },
+                    ]}
                   >
-                    <Text
-                      style={{ color: 'red', fontFamily: FONT_FAMILY.bold }}
-                    >
-                      Clear All Players
+                    <Text style={[styles.secondaryActionLabel, { color: colors.danger }]}>
+                      Remove slot
                     </Text>
                   </Pressable>
-                ) : (
+
                   <Pressable
-                    style={{
-                      backgroundColor: LIGHT_GREEN,
-                      padding: 8,
-                      borderRadius: 5,
-                    }}
                     onPress={() => {
                       if (!selectedGameType) {
-                        Toast.hideAll();
-                        Toast.show('Please select game type first.', {
-                          type: 'warning',
+                        showAlert({
+                          title: 'Game type required',
+                          message: 'Select the game type before choosing players.',
+                          tone: 'warning',
                         });
                         return;
                       }
-                      setSearchPlayer(true);
-                      setSelectedFacility(facility);
+
+                      if (players.length) {
+                        setSlots(prev =>
+                          prev.map((slot, slotIndex) =>
+                            slotIndex === index ? { ...slot, players: null } : slot,
+                          ),
+                        );
+                        return;
+                      }
+
                       setSelectedSlot(item);
+                      setSearchPlayer(true);
                     }}
+                    style={[
+                      styles.primaryAction,
+                      { backgroundColor: players.length ? colors.surface : colors.secondary },
+                    ]}
                   >
                     <Text
-                      style={{
-                        color: SECONDARY_COLOR,
-                        fontFamily: FONT_FAMILY.bold,
-                      }}
+                      style={[
+                        styles.primaryActionLabel,
+                        { color: players.length ? colors.text : colors.onPrimary },
+                      ]}
                     >
-                      Select Player(s)
+                      {players.length ? 'Clear players' : 'Add players'}
                     </Text>
                   </Pressable>
-                )}
+                </View>
               </View>
-            </View>
-          )}
-        />
+            );
+          })}
+        </DetailSection>
 
-        <Card style={{ backgroundColor: 'white', padding: 10 }}>
-          <Text
-            style={[
-              styles.price,
-              { fontSize: 18, fontFamily: FONT_FAMILY.bold },
-            ]}
-          >
-            Payment Summary
-          </Text>
-          <View style={[styles.rowCenter, { justifyContent: 'space-between' }]}>
-            <Text style={styles.price2}>Sub Total:</Text>
-            <Text style={styles.price2}>₹{subTotal || 0.0}</Text>
-          </View>
-          <View
-            style={[
-              styles.rowCenter,
-              {
-                justifyContent: 'space-between',
-                borderBottomWidth: 0.5,
-                paddingBottom: 5,
-                borderBottomColor: 'grey',
-              },
-            ]}
-          >
-            <Text style={styles.price2}>GST ({facility.GSTper || 0}%) :</Text>
-            <Text style={styles.price2}>
-              ₹{Number((subTotal / 100) * facility.GSTper).toFixed(2) || 0.0}
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.rowCenter,
-              { justifyContent: 'space-between', marginTop: 10 },
-            ]}
-          >
-            <Text style={styles.price}>Grand Total:</Text>
-            <Text
-              style={[
-                styles.price,
-                { fontFamily: FONT_FAMILY.bold, fontSize: 17 },
-              ]}
-            >
-              ₹
-              {Number(
-                (subTotal / 100) * facility.GSTper + Number(subTotal),
-              ).toFixed(2)}
-            </Text>
-          </View>
-        </Card>
-        <TouchableOpacity
-          onPress={() => setShowPolicies(true)}
-          activeOpacity={0.9}
-          style={[styles.rowCenter, { marginTop: 10 }]}
+        <DetailSection
+          title="Payment summary"
+          subtitle="The backend fields for GST, facility charge, guest amount, and payable total will be posted exactly from this breakdown."
+          delay={100}
         >
-          <CustomCheckbox
-            onToggle={() => setShowPolicies(true)}
-            checked={agree}
-            color={SECONDARY_COLOR}
-          />
-          <Text style={styles.price2}>
-            I agree
-            <Text style={[styles.price, { textDecorationLine: 'underline' }]}>
-              {' '}
-              Terms & Conditions
+          <View style={styles.summaryRow}>
+            <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Facility total</Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>
+              Rs. {baseAmount.toFixed(2)}
             </Text>
-          </Text>
-        </TouchableOpacity>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Guest/player total</Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>
+              Rs. {guestTotal.toFixed(2)}
+            </Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>
+              GST ({Number(facility?.GSTper || 0)}%)
+            </Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>
+              Rs. {gstAmount.toFixed(2)}
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.totalRow,
+              { borderTopColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.totalLabel, { color: colors.text }]}>Grand total</Text>
+            <Text style={[styles.totalAmount, { color: colors.primary }]}>
+              Rs. {payableAmount}
+            </Text>
+          </View>
+        </DetailSection>
+
+        <DetailSection
+          title="Terms and confirmation"
+          subtitle="Review the cancellation policy before checkout."
+          delay={130}
+        >
+          <Pressable style={styles.termsRow} onPress={() => setShowPolicies(true)}>
+            <CustomCheckbox
+              onToggle={() => setShowPolicies(true)}
+              checked={agree}
+              color={colors.secondary}
+            />
+            <Text style={[styles.termsText, { color: colors.textMuted }]}>
+              I agree to the
+              <Text style={[styles.termsLink, { color: colors.primary }]}> booking terms and cancellation policy</Text>
+            </Text>
+          </Pressable>
+        </DetailSection>
       </ScrollView>
+
       <View
-        style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          padding: 20,
-          paddingTop: 10,
-          backgroundColor: '#fff', // Required for shadow to appear
-          elevation: 3, // Android shadow
-          shadowColor: '#000', // iOS shadow
-          shadowOffset: {
-            width: 0,
-            height: -3, // Negative height to show shadow from the top
+        style={[
+          styles.footer,
+          {
+            backgroundColor: colors.surface,
+            borderTopColor: colors.border,
           },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-        }}
+        ]}
       >
-        <TouchableOpacity
-          activeOpacity={0.9}
-          // onPress={() => setShowPolicies(true)}
-        >
-          <Text
-            style={[
-              styles.price,
-              { fontFamily: FONT_FAMILY.bold, fontSize: 16 },
-            ]}
-          >
-            ₹
-            {Number(
-              (subTotal / 100) * facility.GSTper + Number(subTotal),
-            ).toFixed(2)}{' '}
+        <View style={styles.flexOne}>
+          <Text style={[styles.footerAmount, { color: colors.text }]}>Rs. {payableAmount}</Text>
+          <Text style={[styles.footerMeta, { color: colors.textMuted }]}>
+            {slotCount} {slotCount === 1 ? 'slot' : 'slots'} • {selectedPlayerCount} players
           </Text>
-          <View style={styles.rowCenter}>
-            <Text
-              style={[
-                styles.price,
-                { textDecorationLine: 'underline', color: 'grey' },
-              ]}
-            >
-              of {slots.length + ` ${slots.length > 1 ? 'Slots' : 'Slot'}`}
-            </Text>
-          </View>
-        </TouchableOpacity>
-        <NewButton
-          text={'Check out'}
-          loading={loading}
-          onPress={handleBookFacility}
-        />
+        </View>
+        <NewButton text="Proceed to pay" loading={loading} onPress={handleBookFacility} />
       </View>
+
       <UniversalModal
         visible={showPolicies}
         setVisible={setShowPolicies}
-        title={'Terms & Conditions'}
+        title="Terms & Conditions"
       >
-        <View style={{ flex: 1, padding: 10 }}>
-          <Text
-            style={[
-              styles.price,
-              { fontSize: 16, fontFamily: FONT_FAMILY.semiBold, color: 'red' },
-            ]}
-          >
-            Cancellation policy
+        <View style={styles.policyBody}>
+          <Text style={[styles.policyTitle, { color: colors.danger }]}>Cancellation policy</Text>
+          <Text style={[styles.policyText, { color: colors.textMuted }]}>
+            Plans can change, but facility usage is reserved slot by slot. Cancellation and
+            refund charges will apply as per the configured club policy for this activity.
           </Text>
-          <Text style={styles.price}>
-            <Text style={[styles.price, { fontFamily: FONT_FAMILY.semiBold }]}>
-              {` \n\n We understand that plans can change. However, to ensure fairness to all participants and to maintain operational efficiency.`}
-            </Text>{' '}
-            {` \n\n Cancellations charged as per cancellation policy.`}
-          </Text>
-        </View>
-        <View
-          style={{
-            alignSelf: 'flex-end',
-            justifyContent: 'flex-end',
-            padding: 10,
-          }}
-        >
-          <NewButton
-            text={'Accept'}
-            onPress={() => {
-              setAgree(true), setShowPolicies(false), setLoading(false);
-            }}
-          />
+          <View style={styles.policyAction}>
+            <NewButton
+              text="Accept"
+              onPress={() => {
+                setAgree(true);
+                setShowPolicies(false);
+              }}
+            />
+          </View>
         </View>
       </UniversalModal>
 
-      {searchPlayer && (
+      {searchPlayer ? (
         <PickPlayers
-          facility={selectedFacility}
+          facility={facility}
           searchPlayer={searchPlayer}
           setSearchPlayer={setSearchPlayer}
           guestQuery={guestQuery}
+          playerLibraryQuery={playerLibraryQuery}
           setSlot={setSlots}
           slots={slots}
           search={search}
@@ -607,54 +528,261 @@ const ChoosePlayer: React.FC<Props> = ({ route, navigation }) => {
           selectedSlot={selectedSlot}
           setSelectedSlot={setSelectedSlot}
           selectedGameType={selectedGameType}
-          refetch={guestQuery}
-          toastRef={toastRef}
         />
-      )}
+      ) : null}
+
+      <AppAlertModal
+        visible={alertState.visible}
+        title={alertState.title}
+        message={alertState.message}
+        tone={alertState.tone}
+        primaryLabel={alertState.primaryLabel}
+        secondaryLabel={alertState.secondaryLabel}
+        onDismiss={hideAlert}
+        onPrimaryPress={() => {
+          hideAlert();
+          alertState.onPrimaryPress?.();
+        }}
+        onSecondaryPress={() => {
+          hideAlert();
+          alertState.onSecondaryPress?.();
+        }}
+      />
     </View>
   );
 };
 
-export default ChoosePlayer;
-
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  flexOne: {
+    flex: 1,
+  },
+  content: {
+    paddingBottom: 130,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontFamily: FONT_FAMILY.semiBold,
+    marginBottom: 8,
+  },
   dropdown: {
-    height: 50,
-    borderColor: 'rgb(11, 96, 161)',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    marginTop: 10,
-    backgroundColor: 'white',
+    minHeight: 54,
+    borderRadius: 18,
     borderWidth: 1,
-    color: 'black',
-    fontFamily: FONT_FAMILY.normal,
+    paddingHorizontal: 14,
   },
-  price: {
+  dropdownPlaceholder: {
     fontSize: 14,
     fontFamily: FONT_FAMILY.normal,
-    color: DARK_BLUE,
   },
-  price2: {
+  dropdownValue: {
     fontSize: 14,
+    fontFamily: FONT_FAMILY.semiBold,
+  },
+  dropdownItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    fontFamily: FONT_FAMILY.semiBold,
+  },
+  dropdownItemMeta: {
+    marginTop: 4,
+    fontSize: 12,
     fontFamily: FONT_FAMILY.normal,
-    color: 'grey',
   },
-  placeholderStyle: {
-    fontSize: 16,
-    color: '#999',
+  slotCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 12,
   },
-  rowCenter: { flexDirection: 'row', alignItems: 'center' },
-  selectedTextStyle: {
+  slotHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  slotTitle: {
     fontSize: 16,
-    color: '#333',
+    fontFamily: FONT_FAMILY.bold,
+  },
+  slotMeta: {
+    marginTop: 4,
+    fontSize: 13,
     fontFamily: FONT_FAMILY.normal,
   },
-  itemContainerStyle: {
-    fontSize: 16,
-    color: '#000',
+  statusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
-  iconStyle: {
-    width: 20,
-    height: 20,
+  statusText: {
+    fontSize: 12,
+    fontFamily: FONT_FAMILY.semiBold,
+  },
+  inlineMetrics: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 14,
+  },
+  metricTile: {
+    flex: 1,
+    borderRadius: 16,
+    padding: 12,
+  },
+  metricValue: {
+    fontSize: 15,
+    fontFamily: FONT_FAMILY.bold,
+  },
+  metricLabel: {
+    marginTop: 4,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    fontFamily: FONT_FAMILY.normal,
+  },
+  playerList: {
+    marginTop: 14,
+    gap: 10,
+  },
+  playerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 12,
+  },
+  playerName: {
+    fontSize: 14,
+    fontFamily: FONT_FAMILY.semiBold,
+  },
+  playerMeta: {
+    marginTop: 3,
+    fontSize: 12,
+    fontFamily: FONT_FAMILY.normal,
+  },
+  playerCharge: {
+    fontSize: 14,
+    fontFamily: FONT_FAMILY.bold,
+  },
+  emptyText: {
+    marginTop: 14,
+    fontSize: 13,
+    fontFamily: FONT_FAMILY.normal,
+  },
+  slotActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  secondaryAction: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  secondaryActionLabel: {
+    fontSize: 13,
+    fontFamily: FONT_FAMILY.semiBold,
+  },
+  primaryAction: {
+    flex: 1,
+    borderRadius: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  primaryActionLabel: {
+    fontSize: 13,
+    fontFamily: FONT_FAMILY.semiBold,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  summaryLabel: {
+    fontSize: 13,
+    fontFamily: FONT_FAMILY.normal,
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontFamily: FONT_FAMILY.semiBold,
+  },
+  totalRow: {
+    marginTop: 4,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalLabel: {
+    fontSize: 15,
+    fontFamily: FONT_FAMILY.bold,
+  },
+  totalAmount: {
+    fontSize: 18,
+    fontFamily: FONT_FAMILY.bold,
+  },
+  termsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  termsText: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: FONT_FAMILY.normal,
+  },
+  termsLink: {
+    fontFamily: FONT_FAMILY.semiBold,
+    textDecorationLine: 'underline',
+  },
+  footer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  footerAmount: {
+    fontSize: 20,
+    fontFamily: FONT_FAMILY.bold,
+  },
+  footerMeta: {
+    marginTop: 4,
+    fontSize: 12,
+    fontFamily: FONT_FAMILY.normal,
+  },
+  policyBody: {
+    paddingHorizontal: 16,
+    paddingBottom: 18,
+  },
+  policyTitle: {
+    fontSize: 16,
+    fontFamily: FONT_FAMILY.bold,
+  },
+  policyText: {
+    marginTop: 12,
+    fontSize: 14,
+    lineHeight: 21,
+    fontFamily: FONT_FAMILY.normal,
+  },
+  policyAction: {
+    marginTop: 18,
+    alignItems: 'flex-end',
   },
 });
+
+export default ChoosePlayer;

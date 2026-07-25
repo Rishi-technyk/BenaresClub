@@ -7,19 +7,22 @@ import {
   View,
   Platform,
 } from "react-native";
-import AuthScreenLayout from "../components/AuthScreenLayout";
-import { DARK_BLUE, FONT_FAMILY, LIGHT_GREEN } from "../util/colors";
+import AuthScreenLayout from "../components/AuthScreenLayout.tsx";
+import { FONT_FAMILY } from "../util/colors.tsx";
 import Icon from "react-native-vector-icons/Ionicons";
 import Button2 from "../components/Button2.tsx";
-import { javascriptPost } from "../util/api";
-import { logout } from "../store/slices/authSlice";
+import { javascriptPost } from "../util/api.tsx";
+import { logout } from "../store/slices/authSlice.tsx";
 import { Toast } from "react-native-toast-notifications";
 import { useDispatch, useSelector } from "react-redux";
-import { ENDPOINT } from "../util/constant";
+import { ENDPOINT } from "../util/constant.ts";
+import { useAppTheme } from "../theme/AppThemeProvider.tsx";
 
 const ChangePassword = (navigation) => {
     const dispatch=useDispatch()
     const Token=useSelector(state=>state?.auth?.token)
+    const { colors } = useAppTheme();
+    const styles = createStyles(colors);
  
   const [passwords, setPasswords] = useState({
     old_password: "",
@@ -114,7 +117,7 @@ const [loading, setLoading] = useState(false);
       <View style={styles.inputWrapper}>
         <TextInput
           placeholder="Old Password"
-          placeholderTextColor="grey"
+          placeholderTextColor={colors.placeholder}
           secureTextEntry={!show.old}
           style={[styles.input]}
           value={passwords.old_password}
@@ -124,7 +127,7 @@ const [loading, setLoading] = useState(false);
           <Icon
             name={show.old ? "eye-off" : "eye"}
             size={22}
-            color={"black"}
+            color={colors.text}
           />
         </TouchableOpacity>
       </View>
@@ -136,7 +139,7 @@ const [loading, setLoading] = useState(false);
       <View style={styles.inputWrapper}>
         <TextInput
           placeholder="New Password"
-          placeholderTextColor="grey"
+          placeholderTextColor={colors.placeholder}
           secureTextEntry={!show.new}
           style={[styles.input]}
           value={passwords.new_pass}
@@ -146,7 +149,7 @@ const [loading, setLoading] = useState(false);
           <Icon
             name={show.new ? "eye-off" : "eye"}
             size={22}
-            color={"black"}
+            color={colors.text}
           />
         </TouchableOpacity>
       </View>
@@ -158,7 +161,7 @@ const [loading, setLoading] = useState(false);
       <View style={styles.inputWrapper}>
         <TextInput
           placeholder="Confirm Password"
-          placeholderTextColor="grey"
+          placeholderTextColor={colors.placeholder}
           secureTextEntry={!show.conf}
           style={[styles.input]}
           value={passwords.conf_new_pass}
@@ -170,7 +173,7 @@ const [loading, setLoading] = useState(false);
           <Icon
             name={show.conf ? "eye-off" : "eye"}
             size={22}
-            color={"black"}
+            color={colors.text}
           />
         </TouchableOpacity>
       </View>
@@ -186,42 +189,32 @@ const [loading, setLoading] = useState(false);
 
 export default ChangePassword;
 
-const styles = StyleSheet.create({
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderColor: LIGHT_GREEN,
-    borderWidth: 1,
-    marginTop: 10,
-    paddingHorizontal: 10,
-    marginBottom:10,
-    borderBottomWidth:1,
-    borderBottomColor:DARK_BLUE
-  },
-  input: {
-    flex: 1,
-    color: "black",
-    fontFamily:FONT_FAMILY.normal,
-    paddingVertical: Platform.OS === "ios" ? 15 : 10,
- 
-  },
-  error: {
-    color: "red",
-    fontSize: 12,
-    marginTop: 3,
-    marginLeft: 2,
-    fontFamily:FONT_FAMILY.light
-  },
-  btn: {
-    backgroundColor: LIGHT_GREEN,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginTop: 30,
-  },
-  btnText: {
-    textAlign: "center",
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-});
+const createStyles = (colors) =>
+  StyleSheet.create({
+    inputWrapper: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderColor: colors.border,
+      borderWidth: 1,
+      marginTop: 10,
+      paddingHorizontal: 10,
+      marginBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.primary,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+    },
+    input: {
+      flex: 1,
+      color: colors.text,
+      fontFamily: FONT_FAMILY.normal,
+      paddingVertical: Platform.OS === "ios" ? 15 : 10,
+    },
+    error: {
+      color: colors.danger,
+      fontSize: 12,
+      marginTop: 3,
+      marginLeft: 2,
+      fontFamily: FONT_FAMILY.light,
+    },
+  });

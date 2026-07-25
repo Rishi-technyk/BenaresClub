@@ -1,43 +1,94 @@
-import React from "react";
+import React, { useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
-  Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
-} from "react-native";
-import Header from "../../components/Header";
-import { FONT_FAMILY, DARK_BLUE,  } from "../../util/colors";
-import { ENDPOINT } from "../../util/constant";
-import { AnimatedFAB, Portal, Dialog, } from "react-native-paper";
-import { userGroups, useSession } from "../../services/TeeService";
-import { useSelector } from "react-redux";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import { javascriptGet } from "../../util/api";
-import { Toast } from "react-native-toast-notifications";
-import EditBuddyModal from "./EditBuddyModal";
-import { createShimmerPlaceholder } from "react-native-shimmer-placeholder";
-import LinearGradient from "react-native-linear-gradient";
+} from 'react-native';
+import { useSelector } from 'react-redux';
+import { AnimatedFAB, Dialog, Portal } from 'react-native-paper';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { Toast } from 'react-native-toast-notifications';
 
-const ShimmerPlaceholder = createShimmerPlaceholder(LinearGradient);
+import Header from '../../components/Header';
+import BookingHeroCard from '../../components/booking/BookingHeroCard';
+import EmptyStateCard from '../../components/booking/EmptyStateCard';
+import AppAlertModal from '../../components/feedback/AppAlertModal';
+import { useAppAlert } from '../../hooks/useAppAlert';
+import { useAppTheme } from '../../theme/AppThemeProvider';
+import { userGroups, useSession } from '../../services/TeeService';
+import { javascriptGet } from '../../util/api';
+import { ENDPOINT } from '../../util/constant';
+import { FONT_FAMILY } from '../../util/colors';
+import EditBuddyModal from './EditBuddyModal';
+
+const SessionPickerDialog = ({
+  visible,
+  title,
+  sessions,
+  colors,
+  onDismiss,
+  onSelect,
+}) => (
+  <Portal>
+    <Dialog
+      visible={visible}
+      onDismiss={onDismiss}
+      style={{
+        backgroundColor: colors.surface,
+        borderRadius: 22,
+      }}
+    >
+      <Dialog.Title style={{ color: colors.text, fontFamily: FONT_FAMILY.bold }}>
+        {title}
+      </Dialog.Title>
+      <Dialog.Content>
+        {Array.isArray(sessions) && sessions.length > 0 ? (
+          sessions.map(item => (
+            <Pressable
+              key={item.id}
+              onPress={() => onSelect(item)}
+              style={[
+                styles.sessionRow,
+                {
+                  borderBottomColor: colors.border,
+                },
+              ]}
+            >
+              <Text style={[styles.sessionText, { color: colors.text }]}>
+                {item.session_name}
+              </Text>
+              <Icon name="chevron-right" size={18} color={colors.textMuted} />
+            </Pressable>
+          ))
+        ) : (
+          <Text style={[styles.sessionEmptyText, { color: colors.textMuted }]}>
+            No sessions available right now.
+          </Text>
+        )}
+      </Dialog.Content>
+    </Dialog>
+  </Portal>
+);
+
 const MyBuddies = ({
   navigation,
-  data,
+  sessions,
   buddies,
   token,
   refetch,
   isLoading,
+  colors,
+  showAlert,
 }) => {
- 
-  const [visible, setVisible] = React.useState(false);
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [editBuddy, setEditBuddy] = useState<any>(null);
 
-  const [isExtended, setIsExtended] = React.useState(false);
-  const [editBuddy, setEditBuddy] = React.useState(null);
- 
-  const deleteBuddy = async (id) => {
+  const buddyItems = buddies?.buddies || [];
+
+  const deleteBuddy = async id => {
     try {
       const response = await javascriptGet({
         path: ENDPOINT.tee_delete_buddy + id,
@@ -46,345 +97,389 @@ const MyBuddies = ({
       });
 
       if (response.status) {
-        // Handle successful deletion
-        Toast.show(response.message || "Deleted successfully", {
-          type: "success",
+        Toast.show(response.message || 'Buddy deleted successfully', {
+          type: 'success',
         });
-
         refetch();
-      } else {
-        // Handle deletion error
-        Toast.show(response.message || "Failed to delete", { type: "danger" });
+        return;
       }
-    } catch (error) {
-      console.log(error);
+
+      showAlert({
+        title: 'Delete failed',
+        message: response.message || 'Unable to delete this buddy right now.',
+        tone: 'danger',
+      });
+    } catch (_error) {
+      showAlert({
+        title: 'Delete failed',
+        message: 'Unable to delete this buddy right now.',
+        tone: 'danger',
+      });
     }
   };
 
+  const buddySummary = useMemo(
+    () => ({
+      total: buddyItems.length,
+      uniqueSessions: new Set(buddyItems.map(item => item?.tee_session_id)).size,
+    }),
+    [buddyItems],
+  );
+
   return (
     <View style={styles.tabContainer}>
-      {/* <ScrollView onScroll={onScroll}> */}
 
-        <FlatList
-          data={buddies?.buddies || []}
-          style={{ flex: 1 }}
-          ListEmptyComponent={
-            isLoading === false  ? (
-              <View style={styles.noNotificationContainer}>
-                <Image
-                  source={require("../../../assets/images/user-avatar.png")}
-                  style={styles.noNotificationImage}
-                />
-                <Text style={styles.noNotificationText}>No buddies found.</Text>
-              </View>
-            ) : (
-              emptyList
-            )
-          }
-          renderItem={({ item }) => (
+      <FlatList
+        data={buddyItems}
+        contentContainerStyle={styles.listContent}
+        keyExtractor={item => String(item.id)}
+        ListEmptyComponent={
+          isLoading ? (
+            <View style={styles.emptyWrap}>
+              <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                Loading buddies...
+              </Text>
+            </View>
+          ) : (
+            <EmptyStateCard
+              title="No buddies saved"
+              description="Create a buddy for a session to speed up your next tee reservation."
+            />
+          )
+        }
+        renderItem={({ item }) => {
+          const sessionName =
+            sessions?.find(group => group.id == item.tee_session_id)?.session_name || 'Session';
+
+          return (
             <View
-              style={styles.buddyContainer}
-              onPress={() => setModalData({ buddy: item })}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                },
+              ]}
             >
-              <View style={styles.buddyInfoContainer}>
-                <Text
-                  style={[styles.buddyText, { fontFamily: FONT_FAMILY.bold }]}
-                >
-                  {item?.member.DisplayName}
-                </Text>
-                {data?.data && (
-                  <Text
+              <View style={styles.cardHeader}>
+                <View style={styles.cardIdentity}>
+                  <View
                     style={[
-                      {
-                        fontFamily: FONT_FAMILY.bold,
-                        color: "grey",
-                        marginRight: 10,
-                      },
+                      styles.iconWrap,
+                      { backgroundColor: `${colors.text}14` },
                     ]}
                   >
-                    {data.data.find((group) => group.id == item.tee_session_id)
-                      ?.session_name || "N/A"}
+                    <Icon name="account-heart-outline" size={20} color={colors.text} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.cardTitle, { color: colors.text }]}>
+                      {item?.member?.DisplayName}
+                    </Text>
+                    <Text style={[styles.cardSubtitle, { color: colors.textMuted }]}>
+                      {sessionName}
+                    </Text>
+                  </View>
+                </View>
+                <View
+                  style={[
+                    styles.sessionBadge,
+                    { backgroundColor: `${colors.text}16` },
+                  ]}
+                >
+                  <Text style={[styles.sessionBadgeText, { color: colors.text }]}>
+                    Buddy
                   </Text>
-                )}
+                </View>
               </View>
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={styles.buddyText}>
-                  Member ID: {item?.member?.MemberID}
-                </Text>
+
+              <View style={styles.infoBlock}>
+                <InfoRow label="Member ID" value={item?.member?.MemberID} colors={colors} />
+                <InfoRow label="Email" value={item?.member?.Email || 'N/A'} colors={colors} />
+              </View>
+
+              <View style={styles.cardActions}>
                 <Pressable
+                  style={[
+                    styles.smallAction,
+                    {
+                      borderColor: `${colors.text}35`,
+                      backgroundColor: `${colors.text}12`,
+                    },
+                  ]}
                   onPress={() => {
-                    setVisible(true), setEditBuddy(item);
+                    setEditBuddy(item);
+                    setPickerVisible(true);
                   }}
                 >
-                  <Icon name="pencil" size={24} color="black" />
+                  <Icon name="pencil-outline" size={18} color={colors.text} />
+                  <Text style={[styles.smallActionText, { color: colors.text }]}>
+                    Edit
+                  </Text>
                 </Pressable>
-              </View>
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={styles.buddyText}>
-                  Email: {item?.member?.Email || "N/A"}
-                </Text>
                 <Pressable
-                  onPress={() => {
+                  style={[
+                    styles.smallAction,
+                    {
+                      borderColor: `${colors.danger}35`,
+                      backgroundColor: `${colors.danger}12`,
+                    },
+                  ]}
+                  onPress={() =>
                     Alert.alert(
-                      "Delete",
-                      `Are you sure you want to delete ${item?.member?.DisplayName} ?`,
+                      'Delete buddy',
+                      `Do you want to delete ${item?.member?.DisplayName}?`,
                       [
-                        { text: "Cancel", style: "cancel" },
+                        { text: 'Cancel', style: 'cancel' },
                         {
-                          text: "OK",
-                          onPress: () => {
-                            deleteBuddy(item.id);
-                          },
+                          text: 'Delete',
+                          style: 'destructive',
+                          onPress: () => deleteBuddy(item.id),
                         },
-                      ]
-                    );
-                  }}
+                      ],
+                    )
+                  }
                 >
-                  <Icon name="trash-can" size={24} color="red" />
+                  <Icon name="trash-can-outline" size={18} color={colors.danger} />
+                  <Text style={[styles.smallActionText, { color: colors.danger }]}>
+                    Delete
+                  </Text>
                 </Pressable>
               </View>
             </View>
-          )}
-          keyExtractor={(item) => item.id}
-        />
-      {/* </ScrollView> */}
-      <Portal>
-        <Dialog
-        style={{
-    borderRadius: 16,
-    backgroundColor: "#fff",
-  }}
-        theme={{
-      colors: {
-        primary: DARK_BLUE,      // title / buttons
-        surface: "#ffffff",          // dialog bg
-        backdrop: "rgba(0,0,0,0.5)", // overlay bg
-        onSurface: "#222",           // text color
-      },
-    }}
-         visible={visible} onDismiss={() => setVisible(false)}>
-          <Dialog.Title style={{color:'black'}}>
-            Select Sessions for{" "}
-            {editBuddy?.id ? editBuddy?.member?.DisplayName : "Buddy"}
-          </Dialog.Title>
-          <Dialog.Content>
-            {Array.isArray(data?.data) && data?.data.length > 0 ? (
-              data?.data.map((item) => (
-                <Pressable
-                  key={item.id}
-                  onPress={() => {
-                    navigation.navigate("Addgroups", {
-                      type: "Buddy",
-                      data: item,
-                      edit: editBuddy,
-                    });
-                    setVisible(false);
-                  }}
-                  style={({ pressed }) => [
-                    {
-                      backgroundColor: pressed ? "#ddd" : "transparent", // visual feedback
-                    },
-                  ]}
-                >
-                  <Text style={styles.sessionText}>{item.session_name}</Text>
-                </Pressable>
-              ))
-            ) : (
-              <Text>No sessions available</Text>
-            )}
-          </Dialog.Content>
-        </Dialog>
-      </Portal>
+          );
+        }}
+      />
+
+      <SessionPickerDialog
+        visible={pickerVisible}
+        title={`Select Session${editBuddy ? ` for ${editBuddy?.member?.DisplayName}` : ''}`}
+        sessions={sessions}
+        colors={colors}
+        onDismiss={() => {
+          setPickerVisible(false);
+          setEditBuddy(null);
+        }}
+        onSelect={item => {
+          navigation.navigate('Addgroups', {
+            type: 'Buddy',
+            data: item,
+            edit: editBuddy,
+          });
+          setPickerVisible(false);
+          setEditBuddy(null);
+        }}
+      />
 
       <AnimatedFAB
-        icon={"plus"}
-        label={"New Buddy"}
-        extended={isExtended}
-        onPress={() => setVisible(true)}
-        visible={true}
-        animateFrom={"right"}
-        
-        iconMode={"static"}
-        style={styles.fabStyle}
+        icon="plus"
+        label="New Buddy"
+        extended
+        onPress={() => setPickerVisible(true)}
+        visible
+        animateFrom="right"
+        iconMode="dynamic"
+        style={[
+          styles.fabStyle,
+          {
+            backgroundColor: colors.primary,
+          },
+        ]}
+        color={colors.onPrimary}
       />
     </View>
   );
 };
 
-const Favorite4 = ({ navigation, data, groups, token, refetch, isLoading }) => {
-  const [visible, setVisible] = React.useState(false);
-  const [isExtended, setIsExtended] = React.useState(false);
-  const [modalData, setModalData] = React.useState(null);
+const Favorite4 = ({
+  navigation,
+  sessions,
+  groups,
+  token,
+  refetch,
+  isLoading,
+  colors,
+}) => {
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [modalData, setModalData] = useState<any>(null);
+  const groupItems = groups || [];
+
+  const groupSummary = useMemo(
+    () => ({
+      total: groupItems.length,
+      totalPlayers: groupItems.reduce(
+        (sum, item) =>
+          sum +
+          [item?.player1, item?.player2, item?.player3, item?.player4].filter(Boolean).length,
+        0,
+      ),
+    }),
+    [groupItems],
+  );
 
   return (
     <View style={styles.tabContainer}>
-      {/* <ScrollView onScroll={onScroll}> */}
-        <FlatList
-          data={groups || []}
-          style={{ flex: 1 }}
-          contentContainerStyle={{}}
-          ListEmptyComponent={
-            isLoading === false ? (
-              <View style={styles.noNotificationContainer}>
-              <Image
-                  source={require("../../../assets/images/user-avatar.png")}
-                  style={styles.noNotificationImage}
-                />
-                <Text style={styles.noNotificationText}>No Groups found.</Text>
-              </View>
-            ) : (
-              emptyList
-            )
-          }
-          renderItem={({ item }) => (
+    
+
+      <FlatList
+        data={groupItems}
+        contentContainerStyle={styles.listContent}
+        keyExtractor={item => String(item.id)}
+        ListEmptyComponent={
+          isLoading ? (
+            <View style={styles.emptyWrap}>
+              <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                Loading favorite fours...
+              </Text>
+            </View>
+          ) : (
+            <EmptyStateCard
+              title="No favorite fours saved"
+              description="Create a reusable group to reserve popular tee slots faster."
+            />
+          )
+        }
+        renderItem={({ item }) => {
+          const sessionName =
+            sessions?.find(group => group.id == item.tee_session_id)?.session_name || 'Session';
+          const players = [item?.player1, item?.player2, item?.player3, item?.player4].filter(
+            Boolean,
+          );
+
+          return (
             <Pressable
-              style={styles.buddyContainer}
               onPress={() => setModalData({ buddy: item })}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                },
+              ]}
             >
-              <View style={styles.buddyInfoContainer}>
-                <Text
-                  style={[styles.buddyText, { fontFamily: FONT_FAMILY.bold }]}
-                >
-                  {item?.group_name}
-                </Text>
-                {data?.data && (
-                  <Text
+              <View style={styles.cardHeader}>
+                <View style={styles.cardIdentity}>
+                  <View
                     style={[
-                      {
-                        color: "grey",
-                        marginRight: 10,
-                        fontFamily: FONT_FAMILY.semiBold,
-                      },
+                      styles.iconWrap,
+                      { backgroundColor: `${colors.secondary}14` },
                     ]}
                   >
-                    {data.data.find((group) => group.id == item.tee_session_id)
-                      .session_name || "N/A"}
-                  </Text>
-                )}
+                    <Icon name="account-group-outline" size={20} color={colors.secondary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.cardTitle, { color: colors.text }]}>
+                      {item?.group_name}
+                    </Text>
+                    <Text style={[styles.cardSubtitle, { color: colors.textMuted }]}>
+                      {sessionName}
+                    </Text>
+                  </View>
+                </View>
+                <Icon name="chevron-right" size={20} color={colors.textMuted} />
               </View>
-              <View style={{ flexDirection: "row" }}>
-                <Text numberOfLines={1} style={styles.buddyText}>
-                  1. {item?.player1?.DisplayName}
-                </Text>
-                <Text numberOfLines={1} style={[styles.buddyText]}>
-                  2. {item?.player2?.DisplayName}
-                </Text>
-              </View>
-              <View style={{ flexDirection: "row" }}>
-                <Text numberOfLines={1} style={styles.buddyText}>
-                  3. {item?.player3?.DisplayName}
-                </Text>
-                {item.player4 && (
-                  <Text numberOfLines={1} style={styles.buddyText}>
-                    4. {item?.player4?.DisplayName}
-                  </Text>
-                )}
+
+              <View style={styles.groupList}>
+                {players.map((player, index) => (
+                  <View key={`${player?.id}-${index}`} style={styles.groupRow}>
+                    <Text style={[styles.groupIndex, { color: colors.primary }]}>
+                      {index + 1}.
+                    </Text>
+                    <Text style={[styles.groupName, { color: colors.text }]} numberOfLines={1}>
+                      {player?.DisplayName}
+                    </Text>
+                    <Text style={[styles.groupMeta, { color: colors.textMuted }]} numberOfLines={1}>
+                      {player?.MemberID}
+                    </Text>
+                  </View>
+                ))}
               </View>
             </Pressable>
-          )}
-          keyExtractor={(item) => item.id}
-        />
-      {/* </ScrollView> */}
+          );
+        }}
+      />
+
       <EditBuddyModal
         visible={modalData}
         onDismiss={() => setModalData(null)}
         buddy={modalData?.buddy}
         token={token}
+        refetch={refetch}
       />
-      <Portal>
-        <Dialog 
-              style={{
-    borderRadius: 16,
-    backgroundColor: "#fff",
-  }}
-        theme={{
-      colors: {
-        primary: DARK_BLUE,      // title / buttons
-        surface: "#ffffff",          // dialog bg
-        backdrop: "rgba(0,0,0,0.5)", // overlay bg
-        onSurface: "#222",           // text color
-      },}}
-        visible={visible} onDismiss={() => setVisible(false)}>
-          <Dialog.Title style={{color:'black'}}>Select Sessions for Group</Dialog.Title>
-          <Dialog.Content>
-            {Array.isArray(data?.data) && data?.data.length > 0 ? (
-              data?.data?.map((item) => (
-                <Pressable
-                  key={item.id}
-                  onPress={() => {
-                    navigation.navigate("Addgroups", {
-                      type: "Group",
-                      data: item,
-                    });
-                    setVisible(false);
-                  }}
-                  style={({ pressed }) => [
-                    {
-                      backgroundColor: pressed ? "transparent" : "transparent", // visual feedback
-                    },
-                  ]}
-                >
-                  <Text style={styles.sessionText}>{item.session_name}</Text>
-                </Pressable>
-              ))
-            ) : (
-              <Text>No sessions available</Text>
-            )}
-          </Dialog.Content>
-        </Dialog>
-      </Portal>
+
+      <SessionPickerDialog
+        visible={pickerVisible}
+        title="Select Session for Favorite Four"
+        sessions={sessions}
+        colors={colors}
+        onDismiss={() => setPickerVisible(false)}
+        onSelect={item => {
+          navigation.navigate('Addgroups', {
+            type: 'Group',
+            data: item,
+          });
+          setPickerVisible(false);
+        }}
+      />
 
       <AnimatedFAB
-        icon={"plus"}
-        label={"New Group"}
-        extended={isExtended}
-        onPress={() => setVisible(true)}
-        visible={true}
-        animateFrom={"right"}
-        iconMode={"static"}
-        
-        style={styles.fabStyle}
+        icon="plus"
+        label="New Group"
+        extended
+        onPress={() => setPickerVisible(true)}
+        visible
+        animateFrom="right"
+        iconMode="dynamic"
+        style={[
+          styles.fabStyle,
+          {
+            backgroundColor: colors.primary,
+          },
+        ]}
+        color={colors.onPrimary}
       />
     </View>
   );
 };
 
-const BuddiesTabs = ({navigation}) => {
-  const userData = useSelector((state) => state.auth);
-
+const BuddiesTabs = ({ navigation }) => {
+  const userData = useSelector((state: any) => state.auth);
+  const { colors } = useAppTheme();
+  const { alertState, showAlert, hideAlert } = useAppAlert();
   const sessionsData = useSession(userData.token);
-  const { data, refetch } = userGroups(userData?.token );
-  const [activeTab, setActiveTab] = React.useState<"buddies" | "group">("buddies");
+  const { data, refetch } = userGroups(userData?.token);
+  const [activeTab, setActiveTab] = useState<'buddies' | 'group'>('buddies');
+
+  const sessions = sessionsData?.data?.data || [];
+  const buddies = data?.buddies || [];
+  const groups = data?.groups || [];
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <Header title="Manage Buddies and Favorite 4" />
 
-      {/* 🔥 Custom Tabs */}
-      <View style={styles.tabRow}>
+      <View
+        style={[
+          styles.tabRow,
+          {
+            backgroundColor: colors.surfaceAlt,
+            borderColor: colors.border,
+          },
+        ]}
+      >
         <Pressable
-          onPress={() => setActiveTab("buddies")}
+          onPress={() => setActiveTab('buddies')}
           style={[
             styles.tabBtn,
-            activeTab === "buddies" && styles.activeTabBtn,
+            {
+              backgroundColor:
+                activeTab === 'buddies' ? colors.primary : 'transparent',
+            },
           ]}
         >
           <Text
             style={[
               styles.tabText,
-              activeTab === "buddies" && styles.activeTabText,
+              { color: activeTab === 'buddies' ? colors.onPrimary : colors.textMuted },
             ]}
           >
             Buddies
@@ -392,16 +487,18 @@ const BuddiesTabs = ({navigation}) => {
         </Pressable>
 
         <Pressable
-          onPress={() => setActiveTab("group")}
+          onPress={() => setActiveTab('group')}
           style={[
             styles.tabBtn,
-            activeTab === "group" && styles.activeTabBtn,
+            {
+              backgroundColor: activeTab === 'group' ? colors.primary : 'transparent',
+            },
           ]}
         >
           <Text
             style={[
               styles.tabText,
-              activeTab === "group" && styles.activeTabText,
+              { color: activeTab === 'group' ? colors.onPrimary : colors.textMuted },
             ]}
           >
             Favorite 4
@@ -409,214 +506,234 @@ const BuddiesTabs = ({navigation}) => {
         </Pressable>
       </View>
 
-      {/* 🔥 Render Screen */}
       <View style={{ flex: 1 }}>
-        {activeTab === "buddies" ? (
+        {activeTab === 'buddies' ? (
           <MyBuddies
-          navigation={navigation}
-            data={sessionsData?.data}
+            navigation={navigation}
+            sessions={sessions}
             buddies={data}
             token={userData?.token}
             refetch={refetch}
             isLoading={sessionsData.isLoading}
+            colors={colors}
+            showAlert={showAlert}
           />
         ) : (
           <Favorite4
-             navigation={navigation}
-            data={sessionsData?.data}
-            groups={data?.groups}
+            navigation={navigation}
+            sessions={sessions}
+            groups={groups}
             token={userData?.token}
             refetch={refetch}
             isLoading={sessionsData.isLoading}
+            colors={colors}
           />
         )}
       </View>
+
+      <AppAlertModal
+        visible={alertState.visible}
+        title={alertState.title}
+        message={alertState.message}
+        tone={alertState.tone}
+       primaryLabel={alertState.primaryLabel}
+        secondaryLabel={alertState.secondaryLabel}
+        onPrimaryPress={() => {
+          alertState.onPrimaryPress?.();
+          hideAlert();
+        }}
+        onSecondaryPress={() => {
+          alertState.onSecondaryPress?.();
+          hideAlert();
+        }}
+        onDismiss={hideAlert}
+      />
     </View>
   );
 };
 
-
-// const BuddiesTabs = () => {
-//   const userData = useSelector((state) => state.auth);
-//   const sessionsData = useSession(userData.token); // API data
-//   const { data, refetch } = userGroups(userData.token);
-
-//   return (
-//     <View style={{ flex: 1 }}>
-//       <Header title={"Manage Buddies and Favorite 4"} />
-//       <Tab.Navigator
-//         screenOptions={{
-//           tabBarActiveTintColor: DARK_BLUE,
-//           tabBarInactiveTintColor: "grey",
-//           tabBarStyle: { backgroundColor: "white" },
-//           tabBarIndicatorStyle: { backgroundColor: DARK_BLUE },
-//           tabBarLabelStyle: { fontFamily: FONT_FAMILY.bold },
-//         }}
-//       >
-//         <Tab.Screen name="Buddies">
-//           {(props) => (
-//             <MyBuddies
-//               {...props}
-//               data={sessionsData?.data}
-//               buddies={data}
-//               token={userData?.token}
-//               refetch={refetch}
-//               isLoading={sessionsData.isLoading}
-//             />
-//           )}
-//         </Tab.Screen>
-       
-//            <Tab.Screen name="Favorite 4">
-//           {(props) => (
-//             <Favorite4
-//               {...props}
-//               data={sessionsData?.data}
-//               groups={data?.groups}
-//               token={userData?.token}
-//               refetch={refetch}
-//               isLoading={sessionsData.isLoading}
-//             />
-//           )}
-//         </Tab.Screen>
-       
-        
-//       </Tab.Navigator>
-//     </View>
-//   );
-// };
-
 export default BuddiesTabs;
 
-const emptyList = () => (
-  <FlatList
-    data={[1, 1, 1, 1, 1, 1]}
-    renderItem={() => (
-      <View style={[styles.buddyContainer]}>
-        <View style={{ flex: 1 }}>
-          <ShimmerPlaceholder style={styles.imgStyle} />
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <ShimmerPlaceholder style={styles.imgStyle} />
-            <ShimmerPlaceholder style={styles.imgStyle2} />
-          </View>
-
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <ShimmerPlaceholder style={styles.imgStyle} />
-            <ShimmerPlaceholder style={styles.imgStyle2} />
-          </View>
-        </View>
-      </View>
-    )}
-  />
+const InfoRow = ({
+  label,
+  value,
+  colors,
+}: {
+  label: string;
+  value: any;
+  colors: any;
+}) => (
+  <View style={styles.infoRow}>
+    <Text style={[styles.infoLabel, { color: colors.textMuted }]}>{label}</Text>
+    <Text style={[styles.infoValue, { color: colors.text }]} numberOfLines={1}>
+      {value || 'N/A'}
+    </Text>
+  </View>
 );
+
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
   tabContainer: {
     flex: 1,
   },
-  imgStyle: {
-    margin: 8,
-    borderRadius: 5,
-  },
-  imgStyle2: {
-    height: 25,
-    width: 25,
-    borderRadius: 5,
-    marginVertical: 5,
-  },
-  fabStyle: {
-    bottom: 25,
-    right: 20,
-    // backgroundColor: DARK_BLUE,
-  
-    position: "absolute",
-  },
-  sessionText: {
-    margin: 10,
-  },
-  buddyText: {
-    flex: 1,
-    fontFamily: FONT_FAMILY.semiBold,
-    color: "black",
-    marginHorizontal: 10,
-    paddingVertical: 5,
-  },
-  buddyContainer: {
-    marginTop: 20,
-    backgroundColor: "white",
-    marginHorizontal: 10,
-    padding: 5,
-    borderRadius: 8,
-  },
-  buddyInfoContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  button: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 10,
-    borderRadius: 5,
-    backgroundColor: "lightgray",
-  },
-  buttonText: {
-    fontFamily: FONT_FAMILY.bold,
-    color: "black",
-    marginLeft: 5,
-  },
-  noNotificationImage: {
-    height: 100,
-    width: 100,
-    borderRadius: 50,
-    alignSelf: "center",
-    marginVertical: 20,
-  },
-  noNotificationContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    flex: 1,
-  },
-  noNotificationText: {
-    fontFamily: FONT_FAMILY.bold,
-    color: "black",
-    marginVertical: 10,
+  listContent: {
+    paddingBottom: 110,
   },
   tabRow: {
-  flexDirection: "row",
-  backgroundColor: "#dcdcdc",
-  margin: 12,
-  borderRadius: 10,
-  padding: 4,
-},
-
-tabBtn: {
-  flex: 1,
-  paddingVertical: 10,
-  alignItems: "center",
-  borderRadius: 8,
-},
-
-activeTabBtn: {
-  backgroundColor: DARK_BLUE,
-},
-
-tabText: {
-  fontFamily: FONT_FAMILY.bold,
-  color: "grey",
-},
-
-activeTabText: {
-  color: "white",
-},
-
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 10,
+    borderRadius: 18,
+    padding: 5,
+    borderWidth: 1,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 11,
+    alignItems: 'center',
+    borderRadius: 14,
+  },
+  tabText: {
+    fontFamily: FONT_FAMILY.bold,
+    fontSize: 14,
+  },
+  card: {
+    marginHorizontal: 16,
+    marginBottom: 14,
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 16,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  cardIdentity: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  iconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  cardTitle: {
+    fontFamily: FONT_FAMILY.bold,
+    fontSize: 15,
+  },
+  cardSubtitle: {
+    marginTop: 4,
+    fontFamily: FONT_FAMILY.medium,
+    fontSize: 12,
+  },
+  sessionBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  sessionBadgeText: {
+    fontFamily: FONT_FAMILY.bold,
+    fontSize: 11,
+  },
+  infoBlock: {
+    marginTop: 14,
+    gap: 8,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  infoLabel: {
+    fontFamily: FONT_FAMILY.medium,
+    fontSize: 12,
+  },
+  infoValue: {
+    flex: 1,
+    textAlign: 'right',
+    marginLeft: 12,
+    fontFamily: FONT_FAMILY.semiBold,
+    fontSize: 12,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    marginTop: 16,
+    gap: 10,
+  },
+  smallAction: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  smallActionText: {
+    marginLeft: 8,
+    fontFamily: FONT_FAMILY.bold,
+    fontSize: 13,
+  },
+  groupList: {
+    marginTop: 14,
+    gap: 10,
+  },
+  groupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  groupIndex: {
+    width: 22,
+    fontFamily: FONT_FAMILY.bold,
+    fontSize: 13,
+  },
+  groupName: {
+    flex: 1,
+    fontFamily: FONT_FAMILY.semiBold,
+    fontSize: 13,
+  },
+  groupMeta: {
+    maxWidth: 110,
+    textAlign: 'right',
+    fontFamily: FONT_FAMILY.medium,
+    fontSize: 12,
+  },
+  emptyWrap: {
+    paddingVertical: 36,
+    alignItems: 'center',
+  },
+  emptyHint: {
+    fontFamily: FONT_FAMILY.medium,
+    fontSize: 13,
+  },
+  fabStyle: {
+    position: 'absolute',
+    right: 18,
+    bottom: 24,
+  },
+  sessionRow: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sessionText: {
+    fontFamily: FONT_FAMILY.semiBold,
+    fontSize: 14,
+  },
+  sessionEmptyText: {
+    fontFamily: FONT_FAMILY.medium,
+    fontSize: 13,
+    paddingVertical: 12,
+  },
 });

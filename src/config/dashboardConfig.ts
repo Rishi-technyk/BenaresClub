@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { javascriptGet } from '../util/api';
-import { adminLoginDefault, dashboardDefault,drawerDefault } from '../config/dashboardDefault';
+import { adminLoginDefault, dashboardDefault,drawerDefault } from './dashboardDefault';
 import { Alert } from 'react-native';
 
 const STORAGE_KEY = 'dashboard_config';
@@ -9,7 +9,6 @@ const LOGIN_TABS='login_tabs'
 export const getDashboardConfig = async () => {
   try {
     // 1️⃣ Load cached config first
-
     const cached = await AsyncStorage.getItem(STORAGE_KEY);
     let localConfig = cached ? JSON.parse(cached) : null; // null if nothing cached
 

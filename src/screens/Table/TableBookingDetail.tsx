@@ -16,13 +16,16 @@ import Header from '../../components/Header';
 import { Toast } from 'react-native-toast-notifications';
 import LinearGradient from 'react-native-linear-gradient';
 import { createShimmerPlaceholder } from 'react-native-shimmer-placeholder';
+import BookingHeroCard from '../../components/booking/BookingHeroCard';
+import { useAppTheme } from '../../theme/AppThemeProvider';
 
 const ShimmerPlaceholder = createShimmerPlaceholder(LinearGradient);
 
 const TableBookingDetail = ({ route, navigation }: any) => {
   const { bookingId } = route.params;
   const userData = useSelector((state: RootState) => state.auth);
-
+const {colors}= useAppTheme();
+const styles = createStyles(colors);
   /* ==========================
      FETCH BOOKING DETAILS
   ========================== */
@@ -92,7 +95,7 @@ const TableBookingDetail = ({ route, navigation }: any) => {
   /* ==========================
      SHIMMER
   ========================== */
-
+console.log( booking, '---------------------- booking.booking_date ---------------------');
   if (isLoading) {
     return (
       <View style={{ flex: 1 }}>
@@ -113,58 +116,20 @@ const TableBookingDetail = ({ route, navigation }: any) => {
   return (
     <View style={styles.container}>
       <Header title="Table Details" />
+   <BookingHeroCard 
+         title={booking?.meal?.name}
+         eyebrow={`Booked On ${moment(booking.created_at).format('DD MMM YYYY , HH:mm:ss')}`}
+        status={booking.status}
+        subtitle={moment(booking.booking_date).format('DD MMM YYYY')}
+meta={[
+  { label: 'Time', value: booking?.time?.time },
+  { label: 'Venue', value: booking?.venue?.name },
+  { label: 'Table', value: booking?.table?.name },
+]}
 
-      <View style={styles.card}>
-        <View style={{flexDirection:'row',justifyContent:'space-between'}}>
-
-        <Text style={styles.title}>{booking?.meal?.name}</Text>
-
-        <View
-          style={[
-            styles.badge,
-            {
-              backgroundColor:
-                booking.status === 'Cancelled'
-                  ? '#ffe6e6'
-                  : '#e6f4ea',
-            },
-          ]}
-        >
-          <Text
-            style={{
-              color:
-                booking.status === 'Cancelled'
-                  ? 'red'
-                  : 'green',
-              fontWeight: '600',
-            }}
-          >
-            {booking.status}
-          </Text>
-        </View>
-        </View>
-
-        <InfoRow label="Date" value={moment(booking.booking_date).format('DD MMM YYYY')} />
-        <InfoRow label="Time" value={booking?.time?.time} />
-        <InfoRow label="Venue" value={booking?.venue?.name} />
-        <InfoRow label="Table" value={booking?.table?.name} />
-      </View>
-
-      {/* EDIT */}
-      {/* {canEdit && (
-        <TouchableOpacity
-          style={styles.editBtn}
-          onPress={() =>
-            navigation.navigate('EditTableBooking', {
-              bookingId,
-            })
-          }
-        >
-          <Text style={styles.btnText}>Edit Booking</Text>
-        </TouchableOpacity>
-      )} */}
-
-      {/* CANCEL */}
+     
+     />
+    
       {booking.status !== 'Cancelled' && (
         <TouchableOpacity
           style={styles.cancelBtn}
@@ -187,12 +152,7 @@ const TableBookingDetail = ({ route, navigation }: any) => {
     </View>
   );
 };
-const InfoRow = ({ label, value }: any) => (
-  <View style={styles.row}>
-    <Text style={styles.label}>{label}</Text>
-    <Text style={styles.value}>{value}</Text>
-  </View>
-);
+
 const ShimmerView = () => (
   <View style={{ padding: 20 }}>
     {[1, 2, 3, 4, 5].map((i) => (
@@ -207,10 +167,10 @@ const ShimmerView = () => (
 
 export default TableBookingDetail;
 
-const styles = StyleSheet.create({
+const createStyles=(colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: colors.background,
   },
   center: {
     flex: 1,

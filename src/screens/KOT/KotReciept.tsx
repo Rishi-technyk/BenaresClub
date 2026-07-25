@@ -284,7 +284,258 @@ const isVoid: boolean = KOT.Items.every(
     can_modify
     
   } = receiptData;
-  const handlePrint = async () => {
+//   const handlePrint = async () => {
+//     if (!receiptData) return Alert.alert("No receipt data available to print");
+
+//     // 🔹 Prepare Discount
+//     const totalDiscount = KOTWiseData.reduce((total, kot) => {
+//       return (
+//         total +
+//         kot.Items.reduce(
+//           (acc, val) =>
+//             acc +
+//             (parseFloat(val.Rate || 0) *
+//               parseFloat(val.Qty) *
+//               parseFloat(val.DiscountPer || 0)) /
+//               100,
+//           0
+//         )
+//       );
+//     }, 0);
+
+//     // 🔹 Prepare GST / Tax Section
+//    // 🔹 Prepare Tax Section (MULTIPLE GST SLABS FIXED)
+// let taxSectionHtml = "";
+
+// // key format: GST_5, GST_18, VAT_18 etc.
+// const taxMap: Record<string, number> = {};
+
+// KOTWiseData.forEach((kot) => {
+//   kot.Items.forEach((item) => {
+//     const qty = Number(item.Qty) || 0;
+//     const rate = Number(item.Rate) || 0;
+//     const discount = Number(item.DiscountPer) || 0;
+//     const taxPer = Number(item.TaxPer) || 0;
+//     const taxType = (item.TaxType || "").toUpperCase();
+
+//     if (!taxType || taxPer <= 0) return;
+
+//     const base = qty * rate;
+//     const discountAmt = (base * discount) / 100;
+//     const taxable = base - discountAmt;
+//     const taxAmt = (taxable * taxPer) / 100;
+
+//     const key = `${taxType}_${taxPer}`;
+//     taxMap[key] = (taxMap[key] || 0) + taxAmt;
+//   });
+// });
+
+// // 🔹 Build HTML rows
+// Object.entries(taxMap).forEach(([key, amount]) => {
+//   const [type, perStr] = key.split("_");
+//   const per = Number(perStr);
+
+//   if (type === "GST") {
+//     taxSectionHtml += `
+//       <tr>
+//         <td>(+) CGST (${(per / 2).toFixed(1)}%)</td>
+//         <td class="right">${(amount / 2).toFixed(2)}</td>
+//       </tr>
+//       <tr>
+//         <td>(+) SGST (${(per / 2).toFixed(1)}%)</td>
+//         <td class="right">${(amount / 2).toFixed(2)}</td>
+//       </tr>
+//     `;
+//   } else {
+//     taxSectionHtml += `
+//       <tr>
+//         <td>(+) ${type} (${per.toFixed(1)}%)</td>
+//         <td class="right">${amount.toFixed(2)}</td>
+//       </tr>
+//     `;
+//   }
+// });
+
+// const KOTNos = KOTWiseData.map(kot => kot.KOTNo).join(", ");
+
+// // 🔹 Prepare KOT Items Section
+//     const kotItemsHtml = KOTWiseData.map(
+//       (kot) => `
+//       ${kot.Items.map(
+//         (item) => `
+//         <tr>
+//           <td style="max-width:120px; white-space:normal; word-wrap:break-word;">
+//             ${item.ItemName}
+//           </td>
+//           <td class="center">${parseFloat(item.Rate).toFixed(2)}</td>
+//           <td class="center">${Number(item.Qty)}</td>
+//           <td class="right">${(item.Rate * Number(item.Qty)).toFixed(2)}</td>
+//         </tr>`
+//       ).join("")}
+//     `
+//     ).join("");
+
+//     // 🔹 Final HTML (POS Layout)
+//     const html = `
+//   <html>
+//     <head>
+//       <meta name="viewport" content="width=device width, initial-scale=1.0">
+//       <style>
+//   /* 🔥 MOST IMPORTANT FOR THERMAL */
+//   @page {
+//   margin: 20;
+//   size: auto;
+// }
+
+// html, body {
+//   margin: 0;
+//   padding: 4px;
+//   font-family: monospace;
+//   font-size: 12px;
+//   height: auto;
+//   display: inline-block;
+// }
+
+// table {
+//   width: 100%;
+//   border-collapse: collapse;
+// }
+
+// td, th {
+//   font-size: 12px;
+//   padding: 2px 0;
+// }
+
+// .center { text-align: center; }
+// .right  { text-align: right; }
+
+// hr {
+//   border: none;
+//   border-top: 1px dashed #000;
+//   margin: 4px 0;
+// }
+
+// </style>
+
+//     </head>
+//     <body>
+//       <div class="center">
+//         <b style="font-weight:bold; font-size:24px;">${
+//           Vendor?.Name || ""
+//         }</b><br/>
+//         ${Vendor?.Address || ""}, ${Vendor?.City || ""} - ${
+//       Vendor?.Pincode || ""
+//     }<br/>
+//         Phone: ${Vendor?.Phone || ""}<br/>
+//         GSTIN NO: ${Vendor?.GSTNo || ""}<br/>
+//       </div>
+//       <hr/>
+//  <table>
+//         <tr><td class="center"  style="font-weight:bold; font-size:28px;">${
+//           Location?.LocationName || ""
+//         }</td></tr>
+//       </table>
+//        <hr/>
+//       <table>
+//         <tr><td  style="font-weight:bold;">Bill No</td><td class="left">${
+//           BillNo || ""
+//         }</td><td class="left"  style="font-weight:bold;">Bill Date</td><td class="left">${
+//       moment(BillDate).format("DD-MMM-YY") || ""
+//     }</td>
+//         <tr></tr>
+        
+//   <td  style="font-weight:bold; white-space: nowrap;">Created At</td>
+//  <td class="left" style="white-space: nowrap;">
+//   ${moment(BillDate).format("DD-MMM-YY hh:mm A") || ""}
+// </td>
+// </tr>
+//         <tr><td  style="font-weight:bold;">Cashier</td><td class="left">${
+//           CashierName || "N/A"
+//         }</td></tr>
+//         <tr><td  style="font-weight:bold;">Waiter</td><td class="left">${
+//           WaiterName || "N/A"
+//         }</td><td  style="font-weight:bold;">Table No</td><td class="left">${
+//       TableName || "N/A"
+//     }</td></tr>
+//         <tr><td  style="font-weight:bold;">C_ID/M_ID</td><td class="left">${
+//           SC_ID || "N/A"
+//         }/${
+//           MemberID || "N/A"
+//         }</td></tr>
+//          <tr><td  style="font-weight:bold;">Member Name</td><td class="left">${
+//           MemberName || "N/A"
+//         }</td></tr>
+//          <tr><td  style="font-weight:bold;">Pay Mode</td><td class="left">${
+//            ModeOfPayment || "N/A"
+//          }</td></tr>
+//       </table>
+     
+//       <hr/>
+
+//       <table>
+//         <tr>
+//           <th>ItemName</th>
+//           <th class="center">Rate</th>
+//           <th class="center">Qty</th>
+//           <th class="right">Amount</th>
+//         </tr>
+//         ${kotItemsHtml}
+//       </table>
+
+//       <hr/>
+//       <table>
+//         <tr><td>Subtotal</td><td class="right">${
+//           Summary?.SubTotal?.toFixed(2) || "0.00"
+//         }</td></tr>
+//         <tr><td>Discount</td><td class="right" style="color:red;">${totalDiscount.toFixed(
+//           2
+//         )}</td></tr>
+//         ${taxSectionHtml}
+//         ${
+//           Summary?.ServiceChargeAmount > 0
+//             ? `<tr><td>Service Charge (${
+//                 Summary?.ServiceChargePercent
+//               }%)</td><td class="right">${Summary?.ServiceChargeAmount.toFixed(
+//                 2
+//               )}</td></tr>`
+//             : ""
+//         }
+//         <tr><td>Round Off</td><td class="right">${Summary?.RoundOff?.toFixed(
+//           2
+//         )}</td></tr>
+//         <tr><td><b>BILL AMOUNT</b></td><td class="right"><b>${
+//           Summary?.AmountAfterRoundOff?.toFixed(2) || "0.00"
+//         }</b></td></tr>
+        
+//       </table>
+//       <hr/>
+// <table>
+// <tr><td><b>Opening Balance</b></td><td class="right"><b>${
+//       OpeningBalance || "0.00"
+//     }</b></td></tr>
+//         <tr><td><b>Closing Balance</b></td><td class="right"><b>${
+//           ClosingBalance || "0.00"
+//         }</b></td></tr>
+// </table>
+
+//       <hr/>
+//       <b class="left" style="display:block; text-align:left; white-space:nowrap;">
+//   Order No(s): ${KOTNos}
+// </b>
+    
+   
+//     <div class="center">Thank you for dining with us!</div>
+// <div class="center">--- Powered by Technyk ---</div>
+//     </body>
+//   </html>`;
+
+//     try {
+//       await RNPrint.print({ html, jobName: `Bill_${Date.now()}`, isLandscape: false, });
+//     } catch (err) {
+//       Alert.alert("Print Error", err.message);
+//     }
+//   };
+const handlePrint = async (isPreview:boolean) => {
     if (!receiptData) return Alert.alert("No receipt data available to print");
 
     // 🔹 Prepare Discount
@@ -303,8 +554,6 @@ const isVoid: boolean = KOT.Items.every(
       );
     }, 0);
 
-    // 🔹 Prepare GST / Tax Section
-   // 🔹 Prepare Tax Section (MULTIPLE GST SLABS FIXED)
 let taxSectionHtml = "";
 
 // key format: GST_5, GST_18, VAT_18 etc.
@@ -359,21 +608,40 @@ Object.entries(taxMap).forEach(([key, amount]) => {
 const KOTNos = KOTWiseData.map(kot => kot.KOTNo).join(", ");
 
 // 🔹 Prepare KOT Items Section
-    const kotItemsHtml = KOTWiseData.map(
-      (kot) => `
-      ${kot.Items.map(
-        (item) => `
-        <tr>
-          <td style="max-width:120px; white-space:normal; word-wrap:break-word;">
-            ${item.ItemName}
-          </td>
-          <td class="center">${parseFloat(item.Rate).toFixed(2)}</td>
-          <td class="center">${Number(item.Qty)}</td>
-          <td class="right">${(item.Rate * Number(item.Qty)).toFixed(2)}</td>
-        </tr>`
-      ).join("")}
-    `
-    ).join("");
+ // 🔹 Merge items by ItemCode
+const groupedItems: Record<string, any> = {};
+
+KOTWiseData.forEach((kot) => {
+  kot.Items.forEach((item) => {
+    const key = item.ItemCode || item.ItemName; // fallback if no code
+
+    if (groupedItems[key]) {
+      groupedItems[key].Qty += Number(item.Qty);
+    } else {
+      groupedItems[key] = {
+        ...item,
+        Qty: Number(item.Qty),
+      };
+    }
+  });
+});
+
+// 🔹 Convert to array
+const mergedItems = Object.values(groupedItems);
+
+// 🔹 Generate HTML
+const kotItemsHtml = mergedItems.map(
+  (item: any) => `
+    <tr>
+      <td style="max-width:120px; white-space:normal; word-wrap:break-word;">
+        ${item.ItemName}
+      </td>
+      <td class="center">${parseFloat(item.Rate).toFixed(2)}</td>
+      <td class="center">${item.Qty}</td>
+      <td class="right">${(item.Rate * item.Qty).toFixed(2)}</td>
+    </tr>
+  `
+).join("");
 
     // 🔹 Final HTML (POS Layout)
     const html = `
@@ -382,18 +650,22 @@ const KOTNos = KOTWiseData.map(kot => kot.KOTNo).join(", ");
       <meta name="viewport" content="width=device width, initial-scale=1.0">
       <style>
   /* 🔥 MOST IMPORTANT FOR THERMAL */
-  @page {
-  margin: 20;
-  size: auto;
+ @page {
+   margin: 10px 50px;
+  
 }
 
 html, body {
   margin: 0;
-  padding: 4px;
+  padding: 0;
+  width: 100%;
   font-family: monospace;
   font-size: 12px;
-  height: auto;
-  display: inline-block;
+}
+
+/* 🔥 Important: force full width */
+body {
+  width: 100%;
 }
 
 table {
@@ -402,12 +674,13 @@ table {
 }
 
 td, th {
-  font-size: 12px;
+  font-size: 24px;
   padding: 2px 0;
 }
 
-.center { text-align: center; }
-.right  { text-align: right; }
+.center { text-align: center; font-size: 18px; }
+.right  { text-align: right;font-size: 18px; }
+.left   { text-align: left; font-size: 18px;}
 
 hr {
   border: none;
@@ -427,7 +700,11 @@ hr {
       Vendor?.Pincode || ""
     }<br/>
         Phone: ${Vendor?.Phone || ""}<br/>
-        GSTIN NO: ${Vendor?.GSTNo || ""}<br/>
+     ${
+    Vendor?.GSTNo
+      ? `GSTIN NO: ${Vendor.GSTNo}<br/>`
+      : ""
+  }
       </div>
       <hr/>
  <table>
@@ -446,7 +723,7 @@ hr {
         
   <td  style="font-weight:bold; white-space: nowrap;">Created At</td>
  <td class="left" style="white-space: nowrap;">
-  ${moment(BillDate).format("DD-MMM-YY hh:mm A") || ""}
+  ${moment(BillDate).format("DD-MMM-YY HH:mm") || ""}
 </td>
 </tr>
         <tr><td  style="font-weight:bold;">Cashier</td><td class="left">${
@@ -509,16 +786,19 @@ hr {
         
       </table>
       <hr/>
+
 <table>
 <tr><td><b>Opening Balance</b></td><td class="right"><b>${
-      OpeningBalance || "0.00"
-    }</b></td></tr>
-        <tr><td><b>Closing Balance</b></td><td class="right"><b>${
-          ClosingBalance || "0.00"
-        }</b></td></tr>
+  OpeningBalance || "0.00"
+}</b></td></tr>
+<tr><td><b>Closing Balance</b></td><td class="right"><b>${
+  ClosingBalance || "0.00"
+}</b></td></tr>
 </table>
+  <hr/>
 
-      <hr/>
+
+    
       <b class="left" style="display:block; text-align:left; white-space:nowrap;">
   Order No(s): ${KOTNos}
 </b>
@@ -535,7 +815,6 @@ hr {
       Alert.alert("Print Error", err.message);
     }
   };
-
   
   const handleSetKOT = async (kot, isVoid) => {
     if (!remarks.length) {
@@ -573,7 +852,7 @@ hr {
             {Vendor?.Pincode}
           </Text>
           <Text style={styles.vendorInfo}>📞 {Vendor?.Phone}</Text>
-          <Text style={styles.vendorInfo}>GST: {Vendor?.GSTNo}</Text>
+         {Vendor?.GSTNo && <Text style={styles.vendorInfo}>GST: {Vendor?.GSTNo}</Text>}
         </View>
 
         <View style={styles.divider} />
@@ -843,6 +1122,7 @@ hr {
       
         {!Status ? (
           <Pressable
+          disabled={settleLoading}
             onPress={handleSettleBill}
             style={{
               backgroundColor: "#299c12ff",

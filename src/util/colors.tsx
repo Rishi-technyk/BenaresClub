@@ -1,21 +1,35 @@
-export const DARK_BLUE='#151831';
-export const  LIGHT_GREEN='#F5FFE9';
-export const  PURPLE="#363B5D";
-export const SECONDARY_COLOR = '#79ca14';
-export const LIGHT_BLUE = 'rgb(237, 243, 249)';
-// export const GREY_COLOR = 'grey';
-export const PRIMARY_BUTTON_BLUE = '#363B5D';
+import {
+  THEME_LIGHT_BACKGROUND,
+  THEME_LIGHT_DANGER,
+  THEME_LIGHT_PLACEHOLDER,
+  THEME_LIGHT_PRIMARY,
+  THEME_LIGHT_SECONDARY,
+  THEME_LIGHT_SUCCESS,
+  THEME_LIGHT_SURFACE,
+  THEME_LIGHT_SURFACE_ALT,
+  THEME_LIGHT_TEXT,
+  THEME_LIGHT_TEXT_MUTED,
+} from '@env';
 
-export const PINK_COLOR = '#bb0a1e'
-export const WHITE_COLOR = '#ffffff';
-export const GREEN_COLOR = '#609E28'
-export const BLACK_COLOR = '#000';
+const withFallback = (value: string | undefined, fallback: string) =>
+  value?.trim() ? value.trim() : fallback;
+
+export const DARK_BLUE = withFallback(THEME_LIGHT_PRIMARY, '#151831');
+export const LIGHT_GREEN = '#F5FFE9';
+export const PURPLE = withFallback(THEME_LIGHT_SURFACE_ALT, '#363B5D');
+export const SECONDARY_COLOR = withFallback(THEME_LIGHT_SECONDARY, '#79ca14');
+export const LIGHT_BLUE = withFallback(THEME_LIGHT_SURFACE_ALT, 'rgb(237, 243, 249)');
+export const PRIMARY_BUTTON_BLUE = withFallback(THEME_LIGHT_PRIMARY, '#363B5D');
+
+export const PINK_COLOR = '#bb0a1e';
+export const WHITE_COLOR = withFallback(THEME_LIGHT_SURFACE, '#ffffff');
+export const GREEN_COLOR = withFallback(THEME_LIGHT_SUCCESS, '#609E28');
+export const BLACK_COLOR = withFallback(THEME_LIGHT_TEXT, '#000');
 export const LIGHT_GREY = '#AEB6BF';
 
-
-export const GREY_COLOR = '#979797';
-export const RED_COLOR = "#F2664A"
-export const WHITE_SMOKE = '#F5F5F5';
+export const GREY_COLOR = withFallback(THEME_LIGHT_TEXT_MUTED, '#979797');
+export const RED_COLOR = withFallback(THEME_LIGHT_DANGER, '#F2664A');
+export const WHITE_SMOKE = withFallback(THEME_LIGHT_BACKGROUND, '#F5F5F5');
 export const LIGHT_RED = '#fff0f0';
 
 
@@ -50,10 +64,12 @@ export const TICKET_THEME = {
 
 
 // export const PRIMARY_BUTTON_BLUE = '#007bff';
-export const PLACEHOLDER_COLOR = '#363b5d'
+export const PLACEHOLDER_COLOR = withFallback(THEME_LIGHT_PLACEHOLDER, '#363b5d');
 export const FONT_FAMILY = {
   normal: 'OpenSans-Regular',
+  regular:'OpenSans-Regular',
   bold: 'OpenSans-Bold',
+    medium: 'OpenSans-SemiBold',
   light: "OpenSans-Light",
   semiBold: "OpenSans-SemiBold",
 } as const;

@@ -1,45 +1,27 @@
-
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
   View,
-  Keyboard,
 } from "react-native";
 import Pdf from "react-native-pdf";
-import { connect } from "react-redux";
-import { SECONDARY_COLOR } from "../util/colors";
 import Header from "../components/Header";
+import { useAppTheme } from "../theme/AppThemeProvider";
 
 const PDFComponent = (props) => {
   const [loading, setLoading] = useState(true);
+  const { colors } = useAppTheme();
+  const styles = createStyles(colors);
 
-  const { navigation, route } = props;
+  const { route } = props;
   return (
     <View style={styles.container}>
       {loading && (
-        <View
-          style={{
-            backgroundColor: "rgba(0, 0,0, 0.3)",
-            flex: 1,
-            position: "absolute",
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: "transparent",
-              flex: 1,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingInner}>
             <ActivityIndicator
               size="large"
-              color={SECONDARY_COLOR}
+              color={colors.secondary}
               animating={loading}
             />
           </View>
@@ -70,26 +52,33 @@ const PDFComponent = (props) => {
   );
 };
 
-const mapStateToProps = (state) => {
-  const { commonReducer } = state;
-  return {
-    ...commonReducer,
-  };
-};
-
-const mapDispatchToProps = (dispatch) => {
-  return {};
-};
-
-const PDFView = connect(mapStateToProps, mapDispatchToProps)(PDFComponent);
 export default PDFComponent;
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  pdf: {
-    flex: 1,
-    width: "100%",
-  },
-});
+const createStyles = (colors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    loadingOverlay: {
+      backgroundColor: colors.overlay,
+      flex: 1,
+      position: "absolute",
+      top: 0,
+      bottom: 0,
+      left: 0,
+      right: 0,
+      zIndex: 10,
+    },
+    loadingInner: {
+      backgroundColor: "transparent",
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    pdf: {
+      flex: 1,
+      width: "100%",
+      backgroundColor: colors.background,
+    },
+  });

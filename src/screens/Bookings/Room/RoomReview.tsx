@@ -15,9 +15,12 @@ import { Toast } from 'react-native-toast-notifications';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../../navigation/AppDrawer';
 import { RootState } from '../../../store/store';
+import { useAppTheme } from '../../../theme/AppThemeProvider';
 
 type Props=NativeStackScreenProps<AppStackParamList,'RoomReview'>
 const RoomReview: React.FC<Props> = ({ navigation, route }) => {
+const {colors}=useAppTheme();
+  const styles=createStyles(colors)
   const { booking } = route.params;
 const token=useSelector((state:RootState)=>state.auth.token);
 const user=useSelector((state:RootState)=>state.auth.user);
@@ -51,6 +54,7 @@ const handlePayment = async () => {
       })),
     };
 
+    
     const res = await javascriptPost({
       body: payload,
       Token:token,
@@ -98,7 +102,7 @@ const handlePayment = async () => {
           </View>
 
           <View style={styles.row}>
-            <Text style={styles.label}>Nights</Text>
+            <Text style={styles.label}>Night(s)</Text>
             <Text style={styles.value}>{nights}</Text>
           </View>
         </View>
@@ -194,18 +198,34 @@ const handlePayment = async () => {
 
 export default RoomReview;
 
-const styles = StyleSheet.create({
+const createStyles = (colors: {   background: string;
+  primary: string;
+  secondary: string;
+  onPrimary: string;
+  surface: string;
+  surfaceAlt: string;
+  text: string;
+  textMuted: string;
+  border: string;
+  success: string;
+  warning: string;
+  danger: string;
+
+
+ }) => StyleSheet.create({
   margin:{ marginRight: 8 },
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
+    backgroundColor: colors.background,
   },
   content: {
     paddingBottom: 120,
   },
 
   card: {
-    backgroundColor: '#FFF',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 0.5,
     margin: 16,
     padding: 16,
     borderRadius: 14,
@@ -216,18 +236,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 12,
-    color: '#1d4184ff',
+    color: colors.text,
   },
 
   subTitle: {
     fontSize: 13,
     fontWeight: '600',
     marginBottom: 6,
+    color: colors.textMuted,
   },
 
   subValue: {
     fontSize: 13,
-    color: '#444',
+    color: colors.text,
     marginBottom: 2,
   },
 
@@ -239,30 +260,31 @@ const styles = StyleSheet.create({
 
   label: {
     fontSize: 13,
-    color: '#666',
+    color: colors.textMuted,
   },
 
   value: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#333',
+    color: colors.text,
   },
 
   divider: {
     height: 1,
-    backgroundColor: '#EEE',
+    backgroundColor: colors.border,
     marginVertical: 10,
   },
 
   totalLabel: {
     fontSize: 14,
     fontWeight: '600',
+    color: colors.textMuted,
   },
 
   totalValue: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1d4184ff',
+    color: colors.text,
   },
 
   bottomBar: {
@@ -270,10 +292,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FFF',
+    backgroundColor: colors.surface,
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E6E6E6',
+    borderTopColor: colors.border,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -282,11 +304,11 @@ const styles = StyleSheet.create({
   amount: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1d4184ff',
+    color: colors.text,
   },
 
   cta: {
-    backgroundColor: '#1d4184ff',
+    backgroundColor: colors.secondary,
     paddingHorizontal: 24,
     flexDirection:'row',
     alignItems:'center',
@@ -295,7 +317,7 @@ const styles = StyleSheet.create({
   },
 
   ctaText: {
-    color: '#FFF',
+    color: colors.onPrimary,
     fontWeight: '600',
     fontSize: 14,
   },

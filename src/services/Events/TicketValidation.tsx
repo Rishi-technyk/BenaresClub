@@ -12,7 +12,7 @@ import Header from "../../components/Header";
 import { javascriptGet } from "../../util/api";
 import { ENDPOINT,  } from "../../util/constant";
 import { useSelector } from "react-redux";
-import { DARK_BLUE,FONT_FAMILY } from "../..//util/colors";
+import { DARK_BLUE,FONT_FAMILY } from "../../util/colors";
 import QRScanModal from "../../components/QRScanModal";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { ActivityIndicator, Modal } from "react-native-paper";

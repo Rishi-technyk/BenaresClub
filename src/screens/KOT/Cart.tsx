@@ -18,7 +18,7 @@ import {
 } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
 import Icons from "react-native-vector-icons/Entypo";
-import Octicons from "react-native-vector-icons/Octicons";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import RNPrint from "react-native-print";
 import ItemSearchModal from '../../components/ItemSearchModal'
 import MemberTab from '../../components/MemberTab'
@@ -87,16 +87,16 @@ const MemberSelector : React.FC = ({ navigation, route }) => {
     return slots;
   }, []);
   const fetchMemberCarBalance=async(memId:string)=>{
-    const response=await javascriptPostLocal({
-      path:'staff/card-balance',
-      Token:data.token,
-      body:{
-        memeber_id:memId,
-      }
-    })
-    if(response.status===true){
+    // const response=await javascriptPostLocal({
+    //   path:'staff/card-balance',
+    //   Token:data.token,
+    //   body:{
+    //     memeber_id:memId,
+    //   }
+    // })
+    // if(response.status===true){
 
-    }
+    // }
   }
   useEffect(() => {
     let bill = cart[selectedMember]?.tableData?.activeBill;
@@ -132,6 +132,7 @@ const MemberSelector : React.FC = ({ navigation, route }) => {
 //   setAssignedTo(CartData.data.staff_list?.length[0].UserCode)
 // }
 //   },[CartData.data])
+console.log( cart, '---------------------- cart ---------------------');
   const HandlePlaceOrder = async () => {
     if(data?.user?.MemberID){
       
@@ -151,7 +152,7 @@ const MemberSelector : React.FC = ({ navigation, route }) => {
        if (
       (noOfPax === "" || isNaN(Number(noOfPax)) || parseInt(noOfPax) <= 0)
       &&  !CartData?.data?.single_kot_service
-      //  && !activeBill
+       && !activeBill
     ) {
       setErrors((prev) => ({
         ...prev,
@@ -159,15 +160,12 @@ const MemberSelector : React.FC = ({ navigation, route }) => {
       }));
       return;
     }
-     if (!assignedTo    &&  !CartData?.data?.single_kot_service) {
-      setErrors((prev) => ({ ...prev, assignedTo: "Please select staff" }));
-      return;
+ 
     }
-    }
-
+      setLoading(true);
   const apiObj = {
       path: data?.user.MemberID ?  `${ENDPOINT.place_order}` 
-      //: activeBill ? `${ENDPOINT.waiter_place_order}/${activeBill.BillNo}`
+      : activeBill ? `${ENDPOINT.waiter_place_order}/${activeBill.BillNo}`
         : ENDPOINT.waiter_place_order,
       Token: data.token,
       body: data?.user.MemberID ? {
@@ -186,7 +184,7 @@ const MemberSelector : React.FC = ({ navigation, route }) => {
         items: selectedItems.map((i :any) => ({
           Qty: i.qty,
           Itemcode: i.ItemCode,
-          ItemName: i.Displayas,
+          ItemName: i.ItemName,
           ValuePercentage: Number(i.ValuePercentage),
           SP: parseFloat(i.SP),
           Note: i.Remarks || "",
@@ -211,7 +209,7 @@ const MemberSelector : React.FC = ({ navigation, route }) => {
         items: selectedItems.map((i) => ({
           Qty: i.qty,
           Itemcode: i.ItemCode,
-          ItemName: i.Displayas,
+          ItemName: i.ItemName,
           ValuePercentage: Number(i.ValuePercentage),
           SP: parseFloat(i.SP),
           Note: i.Remarks || "",
@@ -220,13 +218,16 @@ const MemberSelector : React.FC = ({ navigation, route }) => {
           TaxType: i.TaxType || "",
           ServiceCharge: Number(i.ServiceCharge) || 0,
           SaleUnit: Number(i.SaleUnit) || "",
+
         })),
       },
     };
 
     try {
-      setLoading(true);
+      console.log( apiObj, '---------------------- apiObj ---------------------');
+    
       const response = await javascriptPostLocal(apiObj);
+      
       setLoading(false);
       if (response.status === true) {
          const Udata=await AsyncStorage.getItem('user');
@@ -251,7 +252,13 @@ const MemberSelector : React.FC = ({ navigation, route }) => {
         dispatch(clearMemberCart(selectedMember));
         setSelectedMember(null);
         setShowTotalModal(false);
-
+   navigation.navigate("KotReceipt", {
+        token: data?.token,
+        table: { LocationCode: cart[selectedMember]?.tableData.LocationCode, },
+        bill: response?.receipt,
+        isMember:  !!data?.user.MemberID ,
+        single_kot_service:true
+      });
        data?.user.MemberID ? 
        queryClient.invalidateQueries(["foodorder"]):
        queryClient.invalidateQueries(["HomeDetails"]);
@@ -430,7 +437,7 @@ const MemberSelector : React.FC = ({ navigation, route }) => {
                 <Text
                   style={[styles.itemName, { fontFamily: FONT_FAMILY.bold }]}
                 >
-                  {item.Displayas}
+                  {item.ItemName}
                 </Text>
                 <Text style={[styles.itemName, { color: "#63748A",fontSize:13 ,fontFamily:FONT_FAMILY.semiBold}]}>
                   Amount:<Text style={{ color: "#63748A" }}>₹{item.SP}</Text>
@@ -609,7 +616,7 @@ const MemberSelector : React.FC = ({ navigation, route }) => {
             <Text style={{ color: RED_COLOR, fontFamily: FONT_FAMILY.normal }}>
               Clear Cart
             </Text>
-            <Octicons
+              <Ionicons
               name="trash"
               size={20}
               color={RED_COLOR}
@@ -888,7 +895,7 @@ const MemberSelector : React.FC = ({ navigation, route }) => {
                 </View>
 
                 {/* Assigned Staff */}
-                <View style={{ flex: 1, minHeight: 50 }}>
+                {/* <View style={{ flex: 1, minHeight: 50 }}>
                   <Dropdown
                     style={{
                       flex: 1,
@@ -922,7 +929,7 @@ const MemberSelector : React.FC = ({ navigation, route }) => {
                       {errors.assignedTo}
                     </Text>
                   )}
-                </View>
+                </View> */}
               </View>
             )}
 
@@ -986,7 +993,7 @@ const MemberSelector : React.FC = ({ navigation, route }) => {
                     style={[styles.billText, { flex: 2 }]}
                     numberOfLines={1}
                   >
-                    {item.Displayas}
+                    {item.ItemName}
                   </Text>
                   <Text
                     style={[styles.billText, { flex: 1, textAlign: "center" }]}
@@ -1383,7 +1390,6 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
           }
 });
-
 // import React, { useState, useMemo, useCallback, useEffect } from "react";
 // import {
 //   View,
@@ -1400,9 +1406,9 @@ const styles = StyleSheet.create({
 //   Platform,
 //   UIManager,
 //   Alert,
+//   BackHandler,
 // } from "react-native";
 // import { useDispatch, useSelector } from "react-redux";
-// import LinearGradient from "react-native-linear-gradient";
 // import Icons from "react-native-vector-icons/Entypo";
 // import Octicons from "react-native-vector-icons/Octicons";
 // import RNPrint from "react-native-print";
@@ -1434,13 +1440,12 @@ const styles = StyleSheet.create({
 //   const cart = useSelector((state) => state?.cart?.cart);
 //   const dispatch = useDispatch();
 //   const data = useSelector((state) => state.auth || {});
-
+// console.log( cart, '----------------------  ---------------------');
 //   const [deliverySlots, setDeliverySlots] = useState([]);
 //   const memberIds = Object.keys(cart);
 //   const [selectedMember, setSelectedMember] = useState(memberIds[0] || null);
 //   const [address, setAddress] = useState(data?.user?.Address);
 //   const [showTotalModal, setShowTotalModal] = useState(false);
-//   const [billType, setBilltype] = useState(null);
 //   const [showModal, setShowModal] = useState(false);
 //   const [loading, setLoading] = useState(false);
 //   const [assignedTo, setAssignedTo] = useState(null);
@@ -1521,18 +1526,15 @@ const styles = StyleSheet.create({
 // //   },[CartData.data])
 //   const HandlePlaceOrder = async () => {
 //     if(data?.user?.MemberID){
-//       if (!billType) {
-//         setErrors((prev) => ({ ...prev, billType: "Please select order type" }));
-//         return;
-//       }
-//       if (billType === "102") {
+      
+//       if (cart[selectedMember]?.tableData?.orderType.id === 102) {
 //         if (!selectedDeliveryTime) {
 //           setErrors((prev) => ({ ...prev, deliveryTime: "Please select delivery time" }));
 //           return;
 //         }
 //       }
 
-//       if (billType === "102" && (!address || address.trim().length === 0)) {
+//       if (cart[selectedMember]?.tableData?.orderType.id === 102 && (!address || address.trim().length === 0)) {
 //         setErrors((prev) => ({ ...prev, address: "Please enter delivery address" }));
 //         return;
 //       }
@@ -1565,9 +1567,9 @@ const styles = StyleSheet.create({
 //         TableCode: '0',
 //         WaiterCode: '0',
 //         PAX: noOfPax,
-//         BillType: billType || "101",
-//         Address: billType === "102" ? address : "",
-//         DeliveryTime: billType === "102" ? selectedDeliveryTime : "",
+//         BillType: cart[selectedMember]?.tableData?.orderType.id ,
+//         Address: cart[selectedMember]?.tableData?.orderType.id === 102? address : "",
+//         DeliveryTime: cart[selectedMember]?.tableData?.orderType.id === 102 ? selectedDeliveryTime : "",
 //         YearCode: cart[selectedMember]?.tableData.yearCode,
 //         LocationCode: cart[selectedMember]?.tableData?.LocationCode.toString(),
 //         ModeOfPayment: "SMARTCARD",
@@ -1589,7 +1591,7 @@ const styles = StyleSheet.create({
 //       }:{
 //         MemberID: cart[selectedMember].tableData?.MemberId,
 //         TableCode: cart[selectedMember]?.tableData.TableCode,
-//         WaiterCode: assignedTo,
+//         WaiterCode: assignedTo ||1,
 //         UserCode: data.user?.UserCode.toString(),
 //         PAX: noOfPax,
         
@@ -1620,7 +1622,7 @@ const styles = StyleSheet.create({
 //       setLoading(false);
 //       if (response.status === true) {
 //          const Udata=await AsyncStorage.getItem('user');
-//     if (Udata && address && billType==='102'){
+//     if (Udata && address && cart[selectedMember]?.tableData?.orderType.id === 102){
 //           const userData = JSON.parse(Udata);
 //          userData.user.Address = address;
 //           AsyncStorage.setItem('user', JSON.stringify(userData));
@@ -1744,6 +1746,23 @@ const styles = StyleSheet.create({
 //     },
 //     [selectedItems]
 //   );
+//     useEffect(() => {
+//       const backAction = () => {
+//         // Navigate to Home screen
+//           navigation.reset({
+//                     routes: [{ name: "Home" }],
+//                   });
+//         return true; // Prevent default behavior (exit app)
+//       };
+  
+//       const backHandler = BackHandler.addEventListener(
+//         'hardwareBackPress',
+//         backAction
+//       );
+  
+//       // Cleanup the event listener on unmount
+//       return () => backHandler.remove();
+//     }, [navigation]);
 //   // Calculate totals for summary modal
 //   const summaryBreakdown = useMemo(() => {
 //     return selectedItems.reduce(
@@ -1772,7 +1791,7 @@ const styles = StyleSheet.create({
 
 //   const roundOff = useMemo(() => {
 //     const diff = Math.round(totalAmount) - parseFloat(totalAmount);
-//     return diff.toFixed(2);
+//    return Math.abs(diff).toFixed(2);
 //   }, [totalAmount]);
 
 //   const renderCartItem = useCallback(
@@ -1838,8 +1857,8 @@ const styles = StyleSheet.create({
 //                     <AnimatedPressable
 //                       onPress={() => {
 //                         if (
-//                           qty == selectedItems.length &&
-//                           selectedItems.length == 1
+//                           qty === selectedItems.length &&
+//                           selectedItems.length === 1
 //                         ) {
 //                           dispatch(clearMemberCart(selectedMember));
 //                           return;
@@ -1852,6 +1871,7 @@ const styles = StyleSheet.create({
 //                           )
 //                         );
 //                       }}
+                      
 //                     >
 //                       <Text style={styles.qtyText}>−</Text>
 //                     </AnimatedPressable>
@@ -2048,7 +2068,7 @@ const styles = StyleSheet.create({
 
 //       <FlatList
 //         data={selectedItems}
-//         keyExtractor={(item, index) => index.toString()}
+//        keyExtractor={(item) => item.ItemCode}
 //         renderItem={renderCartItem}
 //         initialNumToRender={8}
 //         maxToRenderPerBatch={8}
@@ -2097,7 +2117,10 @@ const styles = StyleSheet.create({
 //           </TouchableOpacity>
 
 //           <TouchableOpacity
-//             onPress={() => setShowTotalModal(true)}
+//             onPress={() => {
+             
+//               setShowTotalModal(true)
+//             }}
 //             activeOpacity={0.7}
 //             style={styles.bottomButton}
 //           >
@@ -2131,49 +2154,24 @@ const styles = StyleSheet.create({
 //                     justifyContent: "space-between",
 //                   }}
 //                 >
-//                   <View style={{ flex: 1, minHeight: 50 }}>
-//                     <Dropdown
+//                   <View  style={{alignSelf:'center'}}>
+//                     <Text
 //                       style={{
-//                         flex: 1,
-//                         borderWidth: 1,
-//                         borderColor: errors.billType ? "red" : "#ccc",
-
-//                         paddingHorizontal: 10,
-//                         borderRadius: 7,
+//                         marginBottom: 5,
+//                         fontFamily: FONT_FAMILY.semiBold,
+//                         color: "#1e88e5",
 //                       }}
-//                       placeholder="Order Type"
-//                       placeholderStyle={{ color: "grey" }}
-//                       data={[
-//                         { label: "Take Away", value: "101" },
-//                         { label: "Home Delivery", value: "102" },
-//                       ]}
-//                       labelField="label"
-//                       valueField="value"
-//                       value={billType}
-//                       onChange={(item) => {
-//                         setBilltype(item.value);
-//                         setErrors((prev) => ({ ...prev, billType: null }));
-//                         if (item.value === "102") {
-//                           setDeliverySlots(generateDeliveryTimes());
-//                         }
-//                       }}
-//                       maxHeight={200}
-//                       searchPlaceholder="Search..."
-//                       searchPlaceholderTextColor="grey"
-//                       selectedTextStyle={{ color: "black" }}
-//                       itemTextStyle={{ color: "black" }}
-//                     />
-//                     {errors.billType && (
-//                       <Text
-//                         style={{ color: "red", fontSize: 11, marginLeft: 10 }}
-//                       >
-//                         {errors.billType}
-//                       </Text>
-//                     )}
-//                   </View>
-//                   {billType === "102" && (
+//                     >
+//                     {cart[selectedMember]?.tableData?.orderType.name}
+//                     </Text>
+                 
+//                   </View>:
+                  
+               
+//                   {cart[selectedMember]?.tableData?.orderType.id === 102 && (
 //                     <View style={{ flex: 1, minHeight: 50 }}>
 //                       <Dropdown
+//                       onBlur={()=> setDeliverySlots( generateDeliveryTimes())}
 //                         style={{
 //                           flex: 1,
 //                           borderWidth: 1,
@@ -2212,7 +2210,7 @@ const styles = StyleSheet.create({
 //                     </View>
 //                   )}
 //                 </View>
-//                 {billType === "102" && (
+//                 {cart[selectedMember]?.tableData?.orderType.id === 102 && (
 //                   <View style={{ marginBottom: 20,  }}>
 //                     <TextInput
 //                       style={{
@@ -2373,7 +2371,7 @@ const styles = StyleSheet.create({
 //             {/* 🔹 Item List */}
 //             <FlatList
 //               data={selectedItems}
-//               keyExtractor={(item, index) => index.toString()}
+//              keyExtractor={(item) => item.ItemCode}
 //               renderItem={({ item }) => (
 //                 <View style={styles.billRow}>
 //                   <Text
@@ -2465,142 +2463,70 @@ const styles = StyleSheet.create({
 //               </View>
 //             )}
 
-//             {/* 🔹 Dynamic GST / VAT Section */}
-//             {(() => {
-//               let GSTVal = 0;
-//               const taxDetails = selectedItems.reduce((acc, item) => {
-//                 const qty = parseFloat(item.qty) || 0;
-//                 const sp = parseFloat(item.SP) || 0;
-//                 const discountPer = parseFloat(item.discount || 0);
-//                 const taxPer = parseFloat(item.ValuePercentage || 0);
-//                 const taxType = (item.TaxType || "").toUpperCase();
+//          {/* 🔹 Dynamic GST / VAT Section (MULTI SLAB FIX) */}
+// {(() => {
+//   // key: GST_5, GST_18, VAT_18 etc.
+//   const taxMap: Record<string, number> = {};
 
-//                 const baseAmount = qty * sp;
-//                 const discountAmt = baseAmount * (discountPer / 100);
-//                 const taxableAmount = baseAmount - discountAmt;
-//                 const taxAmount = taxableAmount * (taxPer / 100);
+//   selectedItems.forEach((item) => {
+//     const qty = Number(item.qty) || 0;
+//     const sp = Number(item.SP) || 0;
+//     const discount = Number(item.discount) || 0;
+//     const taxPer = Number(item.ValuePercentage) || 0;
+//     const taxType = (item.TaxType || "").toUpperCase();
 
-//                 if (item.TaxType == "GST") {
-//                   GSTVal += parseFloat(item.ValuePercentage);
-//                 }
-//                 if (!acc[taxType])
-//                   acc[taxType] = { totalTax: 0, totalItems: 0, avgRate: 0 };
-//                 acc[taxType].totalTax += taxAmount;
-//                 acc[taxType].totalItems += 1;
-//                 acc[taxType].avgRate += taxPer;
-//                 return acc;
-//               }, {});
+//     if (!taxType || taxPer <= 0) return;
 
-//               const totalItems = selectedItems.length;
-//               const gstItems = Object.keys(taxDetails).includes("GST")
-//                 ? taxDetails["GST"].totalItems
-//                 : 0;
+//     const base = qty * sp;
+//     const discountAmt = (base * discount) / 100;
+//     const taxable = base - discountAmt;
+//     const taxAmt = (taxable * taxPer) / 100;
 
-//               Object.keys(taxDetails).forEach((key) => {
-//                 taxDetails[key].avgRate =
-//                   taxDetails[key].totalItems > 0
-//                     ? taxDetails[key].avgRate / taxDetails[key].totalItems
-//                     : 0;
-//               });
+//     const key = `${taxType}_${taxPer}`;
+//     taxMap[key] = (taxMap[key] || 0) + taxAmt;
+//   });
 
-//               const gstDominant = gstItems / totalItems >= 0.5;
-//               if (gstDominant) {
-//                 const gstTax = taxDetails["GST"]?.totalTax || 0;
-//                 const cgst = gstTax / 2;
-//                 const sgst = gstTax / 2;
-//                 const gstRate = taxDetails["GST"]?.avgRate / 2 || 0;
+//   return Object.entries(taxMap).map(([key, amount]) => {
+//     const [type, rateStr] = key.split("_");
+//     const rate = Number(rateStr);
 
-//                 return (
-//                   <>
-//                     {/* CGST Row */}
-//                     <View style={styles.billTotalRow}>
-//                       <Text
-//                         style={[
-//                           styles.billText,
-//                           { fontFamily: FONT_FAMILY.semiBold },
-//                         ]}
-//                       >
-//                         (+) CGST ({GSTVal / 2}%)
-//                       </Text>
-//                       <Text
-//                         style={[
-//                           styles.billText,
-//                           { textAlign: "right", fontSize: 16 },
-//                         ]}
-//                       >
-//                         ₹{cgst.toFixed(2)}
-//                       </Text>
-//                     </View>
+//     if (type === "GST") {
+//       return (
+//         <React.Fragment key={key}>
+//           <View style={styles.billTotalRow}>
+//             <Text style={[styles.billText, { fontFamily: FONT_FAMILY.semiBold }]}>
+//               (+) CGST ({(rate / 2).toFixed(1)}%)
+//             </Text>
+//             <Text style={[styles.billText, { textAlign: "right" }]}>
+//               ₹{(amount / 2).toFixed(2)}
+//             </Text>
+//           </View>
 
-//                     {/* SGST Row */}
-//                     <View style={styles.billTotalRow}>
-//                       <Text
-//                         style={[
-//                           styles.billText,
-//                           { fontFamily: FONT_FAMILY.semiBold },
-//                         ]}
-//                       >
-//                         (+) SGST ({GSTVal / 2}%)
-//                       </Text>
-//                       <Text
-//                         style={[
-//                           styles.billText,
-//                           { textAlign: "right", fontSize: 16 },
-//                         ]}
-//                       >
-//                         ₹{sgst.toFixed(2)}
-//                       </Text>
-//                     </View>
+//           <View style={styles.billTotalRow}>
+//             <Text style={[styles.billText, { fontFamily: FONT_FAMILY.semiBold }]}>
+//               (+) SGST ({(rate / 2).toFixed(1)}%)
+//             </Text>
+//             <Text style={[styles.billText, { textAlign: "right" }]}>
+//               ₹{(amount / 2).toFixed(2)}
+//             </Text>
+//           </View>
+//         </React.Fragment>
+//       );
+//     }
 
-//                     {/* Other Tax Types */}
-//                     {Object.entries(taxDetails)
-//                       .filter(([key]) => key !== "GST")
-//                       .map(([key, val]) => (
-//                         <View key={key} style={styles.billTotalRow}>
-//                           <Text
-//                             style={[
-//                               styles.billText,
-//                               { fontFamily: FONT_FAMILY.semiBold },
-//                             ]}
-//                           >
-//                             (+) {key} ({val.avgRate.toFixed(2)}%)
-//                           </Text>
-//                           <Text
-//                             style={[
-//                               styles.billText,
-//                               { textAlign: "right", fontSize: 16 },
-//                             ]}
-//                           >
-//                             ₹{val.totalTax.toFixed(2)}
-//                           </Text>
-//                         </View>
-//                       ))}
-//                   </>
-//                 );
-//               }
+//     return (
+//       <View key={key} style={styles.billTotalRow}>
+//         <Text style={[styles.billText, { fontFamily: FONT_FAMILY.semiBold }]}>
+//           (+) {type} ({rate.toFixed(2)}%)
+//         </Text>
+//         <Text style={[styles.billText, { textAlign: "right" }]}>
+//           ₹{amount.toFixed(2)}
+//         </Text>
+//       </View>
+//     );
+//   });
+// })()}
 
-//               // Non-GST case
-//               return Object.entries(taxDetails).map(([key, val]) => (
-//                 <View key={key} style={styles.billTotalRow}>
-//                   <Text
-//                     style={[
-//                       styles.billText,
-//                       { fontFamily: FONT_FAMILY.semiBold },
-//                     ]}
-//                   >
-//                     (+) {key} ({val.avgRate.toFixed(2)}%)
-//                   </Text>
-//                   <Text
-//                     style={[
-//                       styles.billText,
-//                       { textAlign: "right", fontSize: 16 },
-//                     ]}
-//                   >
-//                     ₹{val.totalTax.toFixed(2)}
-//                   </Text>
-//                 </View>
-//               ));
-//             })()}
 
 //             {/* 🔹 Round Off */}
 //             <View style={styles.billTotalRow}>
@@ -2723,10 +2649,13 @@ const styles = StyleSheet.create({
 //     borderWidth: 1,
 //     borderColor: "green",
 //     paddingHorizontal: 5,
+    
+//     // width:'100%'
 //   },
-//   qtyButton: { paddingHorizontal: 10, paddingVertical: 5 },
+//   qtyButton: { paddingHorizontal: 10, paddingVertical: 5, },
 //   qtyText: {
-//     fontSize: 16,
+   
+//     fontSize: 30,
 //     color: "green",
 //     fontFamily: FONT_FAMILY.bold,
 //   },

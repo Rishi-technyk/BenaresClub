@@ -1,520 +1,389 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useMemo } from 'react';
 import {
-  View,
-  Text,
+  RefreshControl,
+  ScrollView,
   StyleSheet,
-  FlatList,
-  Pressable,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
-import Icon from "react-native-vector-icons/MaterialIcons";
-import { useRoute } from "@react-navigation/native";
-import Share from "react-native-share";
-import { javascriptGet } from "../../util/api";
-import { DOMAIN, ENDPOINT } from "../../util/constant";
-import { useSelector } from "react-redux";
-import Header from "../../components/Header";
-import moment from "moment";
-import TicketShimmer from "../../components/TicketShimmer";
-import RNHTMLtoPDF, { generatePDF } from 'react-native-html-to-pdf';
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { AppStackParamList } from "../../navigation/AppDrawer";
-import { FONT_FAMILY ,} from "../../util/colors";
+  Text,
+  View,
+} from 'react-native';
+import moment from 'moment';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useSelector } from 'react-redux';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Toast } from 'react-native-toast-notifications';
 
-type Props=NativeStackScreenProps<AppStackParamList ,'EventBookingDetails'>
+import Header from '../../components/Header';
+import BookingHeroCard from '../../components/booking/BookingHeroCard';
+import ActionBar from '../../components/booking/ActionBar';
+import DetailSection from '../../components/booking/DetailSection';
+import DetailGrid from '../../components/booking/DetailGrid';
+import SupportCard from '../../components/booking/SupportCard';
+import EmptyStateCard from '../../components/booking/EmptyStateCard';
+import BookingDetailSkeleton from '../../components/loaders/BookingDetailSkeleton';
+import StatusTimeline from '../../components/timeline/StatusTimeline';
+import PaymentSummaryCard from '../../components/payment/PaymentSummaryCard';
+import { useBookingDetails } from '../../hooks/useBookingDetails';
+import { usePaymentStatus } from '../../hooks/usePaymentStatus';
+import { createBookingSummaryPdf, shareBookingSummary } from '../../util/bookingDocuments';
+import { AppStackParamList } from '../../navigation/AppDrawer';
+import { RootState } from '../../store/store';
+import { ENDPOINT } from '../../util/constant';
+import { useAppTheme } from '../../theme/AppThemeProvider';
 
-const EventPassDetails:React.FC<Props> = ({ navigation,route }) =>{
+type Props = NativeStackScreenProps<AppStackParamList, 'EventBookingDetails'>;
 
+const EventPassDetails: React.FC<Props> = ({ navigation, route }) => {
   const { bookingId } = route.params;
-  const userData = useSelector((s: any) => s.auth);
-  const [bookingParticipants, setBookingParticipants] = useState<any[]>([]);
-  const [passes, setPasses] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingShare, setLoadingShare] = useState(false);
-  const [booking, setBooking] = useState<any>(null);
+  const userData = useSelector((state: RootState) => state.auth);
+  const { colors } = useAppTheme();
+  const { resolveTone, buildPaymentTimeline } = usePaymentStatus();
 
-  const fetchDetails = async () => {
-    setLoading(true);
-    const res = await javascriptGet({
-      path: `${ENDPOINT.event_booking_detail}/${bookingId}`,
-      Token: userData?.token,
-    });
-    if (res?.status) {
-      setBooking(res.booking);
-      setBookingParticipants(res.participants);
-      // const grouped = Object.values(
-      //   res.participants.reduce((acc: any, p: any) => {
-            
-
-      //     acc[p.ticket_type] = acc[p.ticket_type] || {
-      //       ticket_type: p.ticket_type,
-      //        is_complimentary:Number(p.is_complimentary),
-      //       count: 0,
-      //       ticket_id: p.ticket_id,
-      //       title: p.title,
-      //     };
-      //     acc[p.ticket_type].count++;
-      //     return acc;
-      //   }, {})
-      // );
-      // setPasses(grouped);
-   const grouped = Object.values(
-  res.participants.reduce((acc: any, p: any) => {
-
-    const key = Number(p.ticket_id);
-
-    if (!acc[key]) {
-      acc[key] = {
-        amount:p.amount,
-        ticket_id: Number(p.ticket_id),
-        ticket_type: p.ticket_type,
-        title: p.title,
-        is_complimentary: Number(p.is_complimentary),
-        count: 0,
-      };
-    }
-
-
-    acc[key].count += 1;
-    return acc;
-  }, {})
-);
-
-
-setPasses(grouped);
-
-    }
-
-    setLoading(false);
-  };
-console.log(RNHTMLtoPDF);
-  useEffect(() => {
-    fetchDetails();
-  }, []);
-
-const generatePDF1 = async ():Promise<void> => {
-  console.log(bookingParticipants,'bookingParticipants');
-  if (!bookingParticipants?.length) return;
-
-
-
-try {
-  
-
-  const LOGO =
-    DOMAIN.ICON_URL;
-
-  let html = `
-  <html>
-  <head>
-    <style>
-      @page {
-        size: A4;
-        margin: 0;
-      }
-
-      body {
-        margin: 0;
-        padding: 0;
-        width: 794px;     /* A4 width */
-        height: 1123px;   /* A4 height */
-        font-family: Helvetica;
-      }
-
-      .page {
-        width: 794px;
-        height: 1123px;
-        display: flex;
-        flex-wrap: wrap;
-        box-sizing: border-box;
-      }
-
-      .ticket {
-        width: 50%;
-        height: 50%;
-        padding: 10px;
-        box-sizing: border-box;
-    
-  );
-      }
-
-      .ticket-bg {
-        width: 100%;
-        height: 100%;
-        background-size: cover;
-         
-        background-position: center;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        color: white;
-        text-align: center;
-         
-      }
-.overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to bottom,
-    rgba(0,0,0,0.6),
-    rgba(0,0,0,0.3),
-    rgba(0,0,0,0.6)
-  );
-}
-      .logo {
-        width: 60px;
-        height: 60px;
-        margin-bottom: 10px;
-      }
-
-      .club-name {
-        font-size: 20px;
-        font-weight: bold;
-        margin-bottom: 5px;
-      }
-
-      .event-title {
-        font-size: 18px;
-        font-weight: bold;
-      }
-
-      .event-date {
-        margin-top: 5px;
-        font-size: 14px;
-      }
-
-      .pass-type {
-        margin-top: 10px;
-        font-size: 13px;
-        letter-spacing: 2px;
-        font-weight: bold;
-      }
-
-      .qr-box {
-        margin-top: 15px;
-        padding: 10px;
-        background: white;
-      }
-
-      .qr {
-        width: 150px;
-        height: 150px;
-      }
-
-      .info {
-        margin-top: 8px;
-        font-size: 13px;
-      }
-    </style>
-  </head>
-
-  <body>
-  `;
-
-  // LOOP PARTICIPANTS IN GROUPS OF 4
-  for (let i = 0; i < bookingParticipants.length; i += 4) {
-    html += `<div class="page">`;
-
-    const group = bookingParticipants.slice(i, i + 4);
-
-    group.forEach((p) => {
-      const bg = DOMAIN.IMG+'passes/'+ p.image_background;
-
-      html += `
-        <div class="ticket">
-          <div class="ticket-bg" style="background-image:url('${bg}')">
-
-            <img src="${LOGO}" class="logo" />
-
-            <div class="club-name">${booking.formate.heading}</div>
-            <div>${booking.formate.subheading}</div>
-
-            <div class="event-title">${booking.event_name}</div>
-            <div class="event-date">
-              ${moment(booking.event_date).format("ddd MMM DD YYYY • h:mm A")}
-            </div>
-
-            <div class="pass-type">${p.ticket_type.toUpperCase()} PASS</div>
-<div class="event-date">
-    ${p?.ticket_type?.toUpperCase() !== 'VIP' ? p.title : ''}
-</div>
-            
-            <div class="qr-box">
-              <img src="data:image/svg+xml;base64,${p.qr_code}" class="qr" />
-            </div>
-
-            <div class="info" style="width:60%;">${Number(p.is_complimentary) == 1 && (p.ticket_type.toUpperCase() ==="MEMBER"||p.ticket_type.toUpperCase() ==='SPOUSE' )? booking.formate.complimentary_footer1: booking.formate.footer1 }</div>
-            <div class="info">${booking.booking_no}-${p.id}</div>
-            <div class="info">Member: ${p.ticket_type.toUpperCase()==='VIP'?'Special Invitee':booking.memberId||''}</div>
-            <div class="info">${booking.formate.footer2}</div>
-            <div class="info">${booking.formate.footer3}</div>
-
-            ${booking.seats.length && booking.seats.map((s: any) => `<div class="info">Seat: ${s.seat_code}</div>`).join("")}
-          </div>
-        </div>
-      `;
-    });
-
-    html += `</div>`;
-  }
-  html += `</body></html>`;
-return await generatePDF({
-    html,
-    fileName: `event_passes_${bookingId}`,
-    base64: false,
+  const { data, isLoading, isError, refreshing, refresh } = useBookingDetails({
+    queryKey: 'event-booking-detail',
+    path: `${ENDPOINT.event_booking_detail}/${bookingId}`,
+    token: userData?.token,
+    transform: response => (response?.status ? response : null),
   });
-  } catch (error) {
- Alert.alert('Unable to create PDF.') 
-}
-};
-const shareAllTickets = async ():Promise<void> => {
-  try {
-    setLoadingShare(true)
-    const file =await  generatePDF1();
-   
-    setLoadingShare(false)
-   
-    await Share.open({
-      title: "Event Tickets",
-      message: "Here are the event tickets",
-      url: `file://${file.filePath}`, 
-      type: "application/pdf",
-    });
-  } catch (e) {
-    console.log("Share error", e);
-  }
-};
-  const renderItem = ({ item }: any) => {
-   
-    const amount = item.is_complimentary ? 0:item.amount;
-    const subtotal = amount * item.count;
-    // filter participants for this pass
-    const relatedParticipants = bookingParticipants.filter(
-      (p: any) => p.ticket_type.toUpperCase() === item.ticket_type.toUpperCase()
+
+  const booking = data?.booking;
+  const participants = useMemo(() => data?.participants || [], [data?.participants]);
+  const summary = data?.summary || {};
+  const payment = data?.payment || {};
+  const tone = resolveTone(summary?.status || booking?.payment_status);
+  const paymentTimeline = buildPaymentTimeline(payment);
+
+  const groupedParticipants = useMemo(() => {
+    return participants.reduce((acc: Record<string, any>, participant: any) => {
+      const key = String(participant.ticket_id || participant.ticket_type);
+      if (!acc[key]) {
+        acc[key] = {
+          title: participant.title,
+          ticketType: participant.ticket_type,
+          count: 0,
+          amount: participant.amount,
+          complimentary: Number(participant.is_complimentary) === 1,
+          entries: 0,
+          foodServed: 0,
+        };
+      }
+
+      acc[key].count += 1;
+      acc[key].entries += participant.entry_status ? 1 : 0;
+      acc[key].foodServed += participant.food_status ? 1 : 0;
+
+      return acc;
+    }, {});
+  }, [participants]);
+
+  const handleDownload = useCallback(async () => {
+    if (!booking) {
+      return;
+    }
+
+    const file = await createBookingSummaryPdf(
+      booking.booking_no,
+      booking.event_name,
+      [
+        { label: 'Event date', value: moment(booking.event_date).format('DD MMM YYYY, h:mm A') },
+        { label: 'Booking number', value: booking.booking_no },
+        { label: 'Tickets', value: summary?.ticket_count || participants.length },
+        { label: 'Total paid', value: `Rs. ${Number(summary?.total_amount || booking.total_paid || 0).toFixed(2)}` },
+      ],
     );
 
-    const entryDone = relatedParticipants.filter((p) => p.entry_status).length;
-    const foodDone = relatedParticipants.filter((p) => p.food_status).length;
+    Toast.show(file?.filePath ? `Summary saved at ${file.filePath}` : 'Unable to save summary.', {
+      type: file?.filePath ? 'success' : 'danger',
+    });
+  }, [booking, participants.length, summary?.ticket_count, summary?.total_amount]);
 
+  const handleShare = useCallback(async () => {
+    if (!booking) {
+      return;
+    }
+
+    await shareBookingSummary(
+      booking.booking_no,
+      booking.event_name,
+      [
+        { label: 'Event date', value: moment(booking.event_date).format('DD MMM YYYY, h:mm A') },
+        { label: 'Status', value: summary?.status || payment?.status || booking.payment_status },
+        { label: 'Total paid', value: `Rs. ${Number(summary?.total_amount || booking.total_paid || 0).toFixed(2)}` },
+        { label: 'Participants', value: participants.length },
+      ],
+    );
+  }, [booking, participants, payment?.status, summary?.status, summary?.total_amount]);
+
+  const actionItems = useMemo(
+    () => [
+      { label: 'Download', icon: 'file-download-outline', onPress: handleDownload },
+      { label: 'Share', icon: 'share-variant-outline', onPress: handleShare },
+      {
+        label: 'Passes',
+        icon: 'qrcode-scan',
+        onPress: () => navigation.navigate('EventPasses', { bookingId }),
+      },
+    ],
+    [bookingId, handleDownload, handleShare, navigation],
+  );
+
+  if (isLoading) {
     return (
-      <View
-        style={styles.card}
-       
-      >
-        {/* LEFT */}
-        <View style={{ flex: 1 }}>
-          <Text style={styles.passType}>
-            {item.title.toUpperCase()} PASS
-          </Text>
-
-          <Text style={styles.subText}>
-            {item.count} × ₹{amount}
-          </Text>
-
-        
-        </View>
-
-        {/* RIGHT */}
-        <View style={{ alignItems: "flex-end" }}>
-            <Text style={styles.subText}>
-            Entry: {entryDone}/{item.count} • Food: {foodDone}/{item.count}
-          </Text>
-          <Text style={styles.total}>₹{subtotal.toFixed(2)}</Text>
-        </View>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <Header title="Event Booking" />
+        <BookingDetailSkeleton />
       </View>
     );
-  };
+  }
+
+  if (isError || !booking) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <Header title="Event Booking" />
+        <EmptyStateCard
+          type="error"
+          title="Event booking unavailable"
+          description="We could not load the event booking details right now. Pull to refresh and try again."
+        />
+      </View>
+    );
+  }
+
   return (
-    <View style={{ flex: 1 }}>
-      <Header title={"Pass Details"} >
-         {!loading &&(
-          <View style={{flexDirection:'row',alignItems:'center'}}><Pressable onPress={()=>navigation.navigate('EventPasses',{ bookingId: bookingId})} style={{borderWidth:0.4,borderRadius:6,borderColor:'white',padding:5}}>
-           <Text style={{color:'white',}}>
-           View Passes
-          </Text>
-         </Pressable>
-          {loadingShare ?<ActivityIndicator color={'white'}/>:<Pressable onPress={shareAllTickets} >
-           <Icon name="share" size={22} color="#fff" style={{marginLeft:10}} />
-         </Pressable>}
-         </View>)}
-         
-      </Header>
-      {loading ? (
-        <>
-          <TicketShimmer />
-          <TicketShimmer />
-        </>
-      ) : (
-        <View style={styles.container}>
-          <Text style={styles.date}>Booking No: {booking?.booking_no}</Text>
-          <Text style={styles.title}>{booking?.event_name}</Text>
-          <Text style={styles.date}>
-            {" "}
-            on{" "}
-            {moment(booking?.event_date).format("ddd MMM DD YYYY [at] h.m A")}
-          </Text>
-          <View>
-           <FlatList
-            data={passes}
-            keyExtractor={(i, idx) => idx.toString()}
-            renderItem={renderItem}
-          
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <Header title="Event Booking" />
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+      >
+        <BookingHeroCard
+          eyebrow="Event Passes"
+          title={booking.event_name}
+          subtitle={`${moment(booking.event_date).format('ddd, DD MMM • h:mm A')} • ${booking.event_location || 'Club venue'}`}
+          status={payment?.status || booking.payment_status}
+          statusTone={tone.color === colors.success ? 'success' : tone.color === colors.danger ? 'danger' : 'warning'}
+          meta={[
+            { label: 'Booking', value: booking.booking_no, tone: 'neutral' },
+            { label: 'Tickets', value: String(summary?.ticket_count || participants.length), tone: 'neutral' },
+            { label: 'Seats', value: String(summary?.seat_count || booking.seats?.length || 0), tone: 'neutral' },
+          ]}
+        />
+
+        <ActionBar actions={actionItems} />
+
+        <DetailSection title="Booking Snapshot" subtitle="Event, member, and attendance overview." delay={40}>
+          <DetailGrid
+            items={[
+              { label: 'Member', value: data?.member?.name || booking.memberId, highlight: true },
+              { label: 'Member ID', value: data?.member?.member_id || booking.memberId },
+              { label: 'Event date', value: moment(booking.event_date).format('DD MMM YYYY, h:mm A') },
+              { label: 'Location', value: booking.event_location || 'Club venue' },
+              { label: 'Tickets', value: summary?.ticket_count || participants.length },
+              { label: 'Total paid', value: `Rs. ${Number(summary?.total_amount || booking.total_paid || 0).toFixed(2)}` },
+            ]}
           />
-          </View>
-           {booking?.waiter_amount > 0 && (
-        <View
-        style={styles.card}
-       
-      >
-            <Text style={styles.label}>{booking.waiter_count||0} Waiter</Text>
-            <Text style={styles.value}>₹{booking?.waiter_amount}</Text>
-          </View>
-        )}
-          {booking?.seats?.length > 0 && (
-        <View
-        style={styles.card}
-       
-      >
-            <Text style={[styles.label,{maxWidth:'80%'}]}>Seat Number: </Text>
-            <Text style={styles.total}> {booking.seats.map((s: any) => s.seat_code).join(", ")}</Text>
-           
-          </View>
-        )}
-        </View>
-      )}
-    
-    {loading?  <TicketShimmer />:  <View style={styles.summaryCard}>
-        <View style={styles.row}>
-          <Text style={styles.label}>Sub total</Text>
-          <Text style={styles.value}>
-            ₹{Number(booking?.ticket_subtotal).toFixed(2)}
-          </Text>
-        </View>
-        {booking.seats && <View style={styles.row}>
-          <Text style={styles.label}>Seat total</Text>
-          <Text style={styles.value}>
-           ₹{booking.seats.reduce((acc, s) => acc + Number(s.amount), 0).toFixed(2)}
-          </Text>
-        </View>}
+        </DetailSection>
 
-       
+        <DetailSection title="Pass Mix" subtitle="Ticket categories, usage, and serving progress." delay={70}>
+          {Object.values(groupedParticipants).map((group: any, index: number) => (
+            <View
+              key={`${group.title}-${index}`}
+              style={[
+                styles.ticketCard,
+                {
+                  backgroundColor: colors.surfaceAlt,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <View style={styles.ticketHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.ticketTitle, { color: colors.text }]}>
+                    {String(group.title).toUpperCase()}
+                  </Text>
+                  <Text style={[styles.ticketMeta, { color: colors.textMuted }]}>
+                    {group.count} pass(es) • {group.complimentary ? 'Complimentary' : `Rs. ${Number(group.amount || 0).toFixed(2)} each`}
+                  </Text>
+                </View>
+                <View style={[styles.statusChip, { backgroundColor: `${colors.primary}12` }]}>
+                  <Text style={[styles.statusText, { color: colors.primary }]}>{group.ticketType}</Text>
+                </View>
+              </View>
 
-        {booking?.service_charge ? (
-          <View style={styles.row}>
-            <Text style={styles.label}>Service Charge</Text>
-            <Text style={styles.value}>₹{booking?.service_charge}</Text>
-          </View>
+              <DetailGrid
+                items={[
+                  { label: 'Issued', value: group.count },
+                  { label: 'Entries done', value: group.entries },
+                  { label: 'Food served', value: group.foodServed },
+                  { label: 'QR ready', value: participants.filter((item: any) => item.qr_code).length },
+                ]}
+              />
+            </View>
+          ))}
+        </DetailSection>
+
+        <DetailSection title="Participants" subtitle="Individual passes and live usage state." delay={100}>
+          {participants.map((participant: any) => (
+            <View
+              key={participant.id}
+              style={[
+                styles.participantCard,
+                {
+                  backgroundColor: colors.surfaceAlt,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <View style={styles.participantHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.participantName, { color: colors.text }]}>
+                    {participant.name || participant.title}
+                  </Text>
+                  <Text style={[styles.participantMeta, { color: colors.textMuted }]}>
+                    {participant.ticket_type} • {participant.qr_code ? 'QR ready' : 'QR pending'}
+                  </Text>
+                </View>
+                <View style={styles.participantBadges}>
+                  {participant.entry_status ? (
+                    <View style={[styles.smallBadge, { backgroundColor: `${colors.success}18` }]}>
+                      <Text style={[styles.smallBadgeText, { color: colors.success }]}>Entered</Text>
+                    </View>
+                  ) : null}
+                  {participant.food_status ? (
+                    <View style={[styles.smallBadge, { backgroundColor: `${colors.warning}18` }]}>
+                      <Text style={[styles.smallBadgeText, { color: colors.warning }]}>Food</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+          ))}
+        </DetailSection>
+
+        <DetailSection title="Payment and Invoice" subtitle="Charges, taxes, and gateway metadata." delay={130}>
+          <PaymentSummaryCard
+            status={payment?.status || booking.payment_status}
+            items={[
+              { label: 'Ticket subtotal', value: `Rs. ${Number(data?.invoice?.ticket_subtotal || booking.ticket_subtotal || 0).toFixed(2)}` },
+              { label: 'Seat subtotal', value: `Rs. ${Number(data?.invoice?.seat_subtotal || 0).toFixed(2)}` },
+              { label: 'Waiter amount', value: `Rs. ${Number(data?.invoice?.waiter_amount || booking.waiter_amount || 0).toFixed(2)}` },
+              { label: 'Service charge', value: `Rs. ${Number(data?.invoice?.service_charge || booking.service_charge || 0).toFixed(2)}` },
+              { label: 'GST', value: `Rs. ${Number(data?.invoice?.gst || booking.gst || 0).toFixed(2)}` },
+              { label: 'Grand total', value: `Rs. ${Number(data?.invoice?.total || booking.total_paid || 0).toFixed(2)}`, emphasize: true },
+            ]}
+          />
+        </DetailSection>
+
+        <DetailSection title="Booking Timeline" subtitle="Attendance and event readiness milestones." delay={160}>
+          <StatusTimeline items={data?.timeline || []} />
+        </DetailSection>
+
+        {paymentTimeline.length ? (
+          <DetailSection title="Payment Timeline" subtitle="Payment checkpoints and processing history." delay={190}>
+            <StatusTimeline items={paymentTimeline} />
+          </DetailSection>
         ) : null}
 
-        {booking?.gst ? (
-          <View style={styles.row}>
-            <Text style={styles.label}>GST</Text>
-            <Text style={styles.value}>₹{booking?.gst}</Text>
+        <DetailSection title="Rules and Support" subtitle="Pass usage guidelines and support contacts." delay={220}>
+          <View style={styles.ruleList}>
+            {data?.rules?.map((rule: string, index: number) => (
+              <View key={`${rule}-${index}`} style={styles.ruleRow}>
+                <Icon name="ticket-confirmation-outline" size={18} color={colors.secondary} />
+                <Text style={[styles.ruleText, { color: colors.text }]}>{rule}</Text>
+              </View>
+            ))}
           </View>
-        ) : null}
 
-        <View style={styles.divider} />
-
-        <View style={styles.row}>
-          <Text style={styles.totalLabel}>Total Paid</Text>
-          <Text style={styles.totalValue}>
-            ₹{Number(booking?.total_paid).toFixed(2)}
-          </Text>
-        </View>
-      </View>}
+          <View style={{ marginTop: 14 }}>
+            <SupportCard
+              contactName={data?.support?.name}
+              phone={data?.support?.phone}
+              email={data?.support?.email}
+              note={data?.support?.note}
+            />
+          </View>
+        </DetailSection>
+      </ScrollView>
     </View>
   );
-}
+};
 
-export default EventPassDetails
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f6f6f8",
-    padding: 16,
+  content: {
+    paddingBottom: 32,
   },
-
-  title: {
-    fontFamily: FONT_FAMILY.bold,
-    fontSize: 18,
-    marginBottom: 4,
-    color: "black",
-  },
-
-  date: {
-    color: "#6b7280",
-    marginBottom: 16,
-  },
-
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 16,
+  ticketCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
     marginBottom: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
   },
-
-  passType: {
-    fontFamily: FONT_FAMILY.bold,
-    fontSize: 16,
-    color: "#111827",
+  ticketHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
   },
-
-  subText: {
-    fontSize: 13,
-    color: "#6b7280",
-    fontFamily: FONT_FAMILY.normal,
-    marginTop: 4,
-  },
-  summaryCard: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 16,
-    marginTop: 10,
-  },
-
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-
-  label: {
-    fontSize: 13,
-    color: "#6b7280",
-  },
-
-  value: {
-    fontSize: 13,
-    color: "#111827",
-    fontFamily: FONT_FAMILY.bold,
-  },
-  total: {
-    fontSize: 13,
-    color: "#111827",
-    fontFamily: FONT_FAMILY.bold,
-  },
-
-  divider: {
-    height: 1,
-    backgroundColor: "#e5e7eb",
-    marginVertical: 10,
-  },
-
-  totalLabel: {
+  ticketTitle: {
     fontSize: 15,
-    fontFamily: FONT_FAMILY.bold,
-    color: "black",
+    fontWeight: '700',
   },
-
-  totalValue: {
-    fontSize: 16,
-    fontFamily: FONT_FAMILY.bold,
-    color: "#135bec",
+  ticketMeta: {
+    marginTop: 4,
+    fontSize: 12,
   },
-
+  statusChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+  },
+  participantCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 12,
+  },
+  participantHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  participantName: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  participantMeta: {
+    marginTop: 4,
+    fontSize: 12,
+  },
+  participantBadges: {
+    alignItems: 'flex-end',
+  },
+  smallBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    marginBottom: 6,
+  },
+  smallBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  ruleList: {
+    gap: 10,
+  },
+  ruleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  ruleText: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 13,
+    lineHeight: 19,
+  },
 });
+
+export default EventPassDetails;

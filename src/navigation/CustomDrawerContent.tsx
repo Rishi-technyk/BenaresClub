@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -19,27 +20,22 @@ import Icon from "react-native-vector-icons/Ionicons";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 
 import { loginSuccess, logout } from "../store/slices/authSlice";
-import { DARK_BLUE, FONT_FAMILY } from "../util/colors";
-import { javascriptPost, ApiResponse, javascriptGet } from "../util/api";
-import { DOMAIN, ENDPOINT } from "../util/constant";
+import { FONT_FAMILY } from "../util/colors";
+import { javascriptGet } from "../util/api";
+import { DOMAIN } from "../util/constant";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getDrawerConfig } from "../config/dashboardConfig";
-
-interface DocumentResponse {
-  contact_us?: string;
-  [key: string]: any;
-}
+import { useAppTheme } from "../theme/AppThemeProvider";
 
 export const CustomDrawerContent = (
   props: DrawerContentComponentProps
 ) => {
   const dispatch = useDispatch();
+  const { colors, resolvedMode, toggleMode } = useAppTheme();
   const user=useSelector((state:any)=>state.auth.user)
   const token=useSelector((state:any)=>state.auth.token)
 
   const [Menues, setMenues] = useState<any[] | null>(null);
-
-  const [profileImage, setProfileImage] = useState<string | null>(null);
 
   /* -----------------------------------------
      Fetch Document URLs
@@ -47,7 +43,6 @@ export const CustomDrawerContent = (
   const fetchDrawerMenues = async () => {
     try {
      const config = await getDrawerConfig()
-   console.log( config, '---------------------- config ---------------------');
    setMenues(config.drawer_menu)
     } catch (err) {
       console.log(err, "Error fetching documents");
@@ -55,16 +50,12 @@ export const CustomDrawerContent = (
     }
   };
 
-  useEffect(() => {
-    loadProfileImage();
-  }, []);
-  const loadProfileImage = async () => {
+  const loadProfileImage = useCallback(async () => {
     
     try {
      const res= await javascriptGet({path:'member/profile',Token: token});
 
       if(res.status){
-       setProfileImage(res?.data?.profile_image);
        if(res?.data?.profile_image !== user?.profile_image){
        
          const data=await AsyncStorage.getItem('user');
@@ -76,15 +67,16 @@ export const CustomDrawerContent = (
                   AsyncStorage.setItem('user', JSON.stringify(userData));
                   dispatch(loginSuccess(userData))
                 }
-                  AsyncStorage.setItem('user', JSON.stringify(userData));
-                  dispatch(loginSuccess(userData))
-                }
+              }
       }
     } catch (error) {
       console.log("Error loading profile image:", error);
   
     }
-  };
+  }, [dispatch, token, user?.profile_image]);
+  useEffect(() => {
+    loadProfileImage();
+  }, [loadProfileImage]);
   useEffect(() => {
     fetchDrawerMenues();
   }, []);
@@ -122,8 +114,9 @@ const handleNavigation = (item:any) => {
     Linking.openURL(item.params.url);
   }
 };
+console.log( user.profile_image, '---------------------- user.profile_image ---------------------');
   return (
-    <View style={{ flex: 1, backgroundColor: DARK_BLUE }}>
+    <View style={{ flex: 1, backgroundColor: colors.primary }}>
       <DrawerContentScrollView {...props}>
         {/* Profile Avatar */}
         <TouchableOpacity
@@ -134,12 +127,12 @@ const handleNavigation = (item:any) => {
           <Avatar.Image
             size={60}
             source={{ uri:user.profile_image? `${DOMAIN.API_IMAGE_URL}${user.profile_image}`:'https://randomuser.me/api/portraits/men/1.jpg' }}
-            style={{ backgroundColor: "white" }}
+            style={{ backgroundColor: colors.surface }}
           />
 
           <MaterialCommunityIcons
             name="account-edit"
-            color={"white"}
+            color={colors.onPrimary}
             size={25}
             style={styles.editIcon}
           />
@@ -149,30 +142,55 @@ const handleNavigation = (item:any) => {
 
         {/* Drawer Section */}
         <Drawer.Section>
+   <View
+            style={[
+              styles.themeRow,
+              {
+                borderColor: colors.overlay,
+                backgroundColor: colors.overlay,
+              },
+            ]}
+          >
+            <View style={styles.themeTextWrap}>
+              <Text style={[styles.themeLabel, { color: colors.onPrimary }]}>
+                Dark mode
+              </Text>
+              <Text style={[styles.themeHint, { color: colors.textMuted }]}>
+                Switch the app palette instantly
+              </Text>
+            </View>
+            <Switch
+              value={resolvedMode === "dark"}
+              onValueChange={toggleMode}
+              // thumbColor={resolvedMode === "dark" ? colors.secondary : colors.surface}
+              // trackColor={{ false: colors.border, true: colors.secondary }}
+            />
+          </View>
 
           <DrawerItem
             icon={({ size }) => (
               <MaterialCommunityIcons
                 name="eye-refresh"
-                color={"white"}
+                color={colors.onPrimary}
                 size={size}
               />
             )}
             label="Change password"
-            labelStyle={styles.drawerLabel}
+            labelStyle={[styles.drawerLabel, { color: colors.onPrimary }]}
             onPress={() => props.navigation.navigate("ChangePassword" as never)}
           />
 
+       
         {Menues?.map((item) => (
   <DrawerItem
     key={item.id}
     label={item.title}
-    labelStyle={{ color: 'white' }}
+    labelStyle={{ color: colors.onPrimary, fontFamily: FONT_FAMILY.normal }}
     icon={({ size }) => (
       <MaterialCommunityIcons
         name={item.icon}
         size={size}
-        color="white"
+        color={colors.onPrimary}
       />
     )}
     onPress={() => handleNavigation(item)}
@@ -181,10 +199,10 @@ const handleNavigation = (item:any) => {
 
           <DrawerItem
             icon={({ size }) => (
-              <Icon name="exit-outline" color={"red"} size={size} />
+              <Icon name="exit-outline" color={colors.danger} size={size} />
             )}
             label="Logout"
-            labelStyle={{ color: "red", fontFamily: FONT_FAMILY.normal }}
+            labelStyle={{ color: colors.danger, fontFamily: FONT_FAMILY.normal }}
             onPress={_promptForLogout}
           />
         </Drawer.Section>
@@ -211,13 +229,36 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   drawerLabel: {
-    color: "white",
     fontFamily: FONT_FAMILY.normal,
   },
   versionText: {
     color: "grey",
     fontSize: 14,
     fontFamily: FONT_FAMILY.normal,
+  },
+  themeRow: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  themeTextWrap: {
+    flex: 1,
+    marginRight: 12,
+  },
+  themeLabel: {
+    fontFamily: FONT_FAMILY.bold,
+    fontSize: 15,
+  },
+  themeHint: {
+    fontFamily: FONT_FAMILY.normal,
+    fontSize: 12,
+    marginTop: 2,
   },
 });
 

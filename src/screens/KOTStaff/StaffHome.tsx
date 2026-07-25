@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import Icon from "react-native-vector-icons/AntDesign";
-import Zocial from "react-native-vector-icons/Zocial";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import { DrawerActions } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import { useDispatch, useSelector } from "react-redux";
@@ -27,6 +27,7 @@ import { DARK_BLUE, FONT_FAMILY, RED_COLOR,  } from "../../util/colors";
 import moment from "moment";
 import InAppUpdate from "../../components/InAppUpdate";
 import { clearAllCart } from "../../store/actions/cartActions";
+import { DOMAIN } from "../../util/constant";
 
 const { width } = Dimensions.get("window");
 const ShimmerPlaceholder = createShimmerPlaceholder(LinearGradient);
@@ -34,7 +35,7 @@ const ShimmerPlaceholder = createShimmerPlaceholder(LinearGradient);
 const StaffHome = ({ navigation }) => {
   const User = useSelector((state) => state.auth);
   const dispatch = useDispatch();
-  const cart = useSelector((state) => state.cart.cart);
+  const cart = useSelector((state) => state.cart?.cart||{});
   const [Orders, setOrders] = useState([]);
   const [selectedValue, setSelectedValue] = useState(
     parseFloat(User?.user?.LocationCode) || null
@@ -64,6 +65,7 @@ const StaffHome = ({ navigation }) => {
       return response;
     },
   });
+  console.log( User, '---------------------- HomeMenues.data ---------------------');
   // ✅ Fetch Dashboard Details
   const HomeDetails = useQuery({
     queryKey: ["HomeDetails", User?.token, selectedValue],
@@ -100,7 +102,9 @@ useEffect(() => {
     }
   };
 
-  const renderItem = ({ item }) => (
+  const renderItem = ({ item }) =>{
+    console.log( `${DOMAIN.LOCAL}public/icon/${item?.icon}`, '---------------------- `${DOMAIN.LOCAL}public/icon/${item?.icon}` ---------------------');
+    return (
 
     <Pressable
       onPress={() => {
@@ -133,7 +137,7 @@ useEffect(() => {
         }}>
  <Image
           source={{
-            uri: `https://teebooking.aepta.in/api/icon/${item?.icon}`,
+            uri: `${DOMAIN.LOCAL}public/icon/${item?.icon}`,
           }}
           style={{
             // position: "absolute",
@@ -163,7 +167,7 @@ useEffect(() => {
         
       </View>
     </Pressable>
-  );
+  );}
 
   // ✅ Loading placeholders
   const renderShimmerMenu = () => (
@@ -244,15 +248,15 @@ useEffect(() => {
           placeholder="Select Location"
           value={selectedValue}
           onChange={(item) => {
-            if(Object.keys(cart).length > 0){
+            if(Object?.keys(cart).length > 0){
              dispatch(clearAllCart());
             }
             setSelectedValue(item.code)}
           }
         />
         <Pressable onPress={() => navigation.navigate("Cart")}>
-          {Object.keys(cart).length > 0 && <View style={styles.badgeDot} />}
-          <Zocial name="cart" size={25} color={"white"} />
+          {Object?.keys(cart)?.length > 0 && <View style={styles.badgeDot} />}
+          <Ionicons name="cart" size={25} color={"white"} />
         </Pressable>
       </View>
 

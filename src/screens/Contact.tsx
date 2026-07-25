@@ -20,6 +20,7 @@ import { ENDPOINT } from "../util/constant";
 import { javascriptPost } from "../util/api";
 import { RootState } from "../store/store";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useAppTheme } from "../theme/AppThemeProvider";
 
 /* ------------------------------------------------------------------ */
 /* Types */
@@ -59,7 +60,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "Contact">;
 const Contact: React.FC<Props> = ({ navigation,route }) => {
   const toast = useToast();
   const token = useSelector((state: RootState) => state.auth?.token);
-console.log( route, '---------------------- route ---------------------');
+const { colors } = useAppTheme();
   const [loading, setLoading] = useState(false);
 
   /* ----------------------- CONTACT INFO ----------------------- */
@@ -205,7 +206,7 @@ console.log( route, '---------------------- route ---------------------');
   /* ------------------------------------------------------------------ */
 
   return (
-    <View style={{ flex: 1, backgroundColor: "white" }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <Header title="Contact Us" />
 
       <KeyboardAwareScrollView
@@ -229,11 +230,11 @@ console.log( route, '---------------------- route ---------------------');
                 alignItems: "center",
               }}
             >
-              <Icons name={item.icon} size={20} color={"#000"} style={{ marginRight: 10 }} />
+              <Icons name={item.icon} size={20} color={colors.text} style={{ marginRight: 10 }} />
               <Text
                 onPress={() => handleContactPress(item)}
                 style={{
-                  color: item.color || "black",
+                  color: item.color ||colors.text,
                   fontFamily: FONT_FAMILY.normal,
                   flex: 1,
                   flexWrap: "wrap",
@@ -248,7 +249,7 @@ console.log( route, '---------------------- route ---------------------');
         {/* ------- Input Fields ------- */}
         {Inputs.map((item, index) => (
           <View key={item.id} style={{ marginBottom: 15 }}>
-            <Text style={{ color: "black", fontFamily: FONT_FAMILY.normal }}>
+            <Text style={{ color: colors.text, fontFamily: FONT_FAMILY.normal }}>
               {item.name}
             </Text>
             <TextInput
@@ -256,12 +257,14 @@ console.log( route, '---------------------- route ---------------------');
               style={{
                 borderWidth: 0.3,
                 borderRadius: 10,
+               borderColor: colors.border,
+    backgroundColor: colors.surface,
                 padding: 10,
                 marginTop: 5,
                 fontFamily: FONT_FAMILY.normal,
                 minHeight: item.id === 5 ? 150 : undefined,
                 textAlignVertical: "top",
-                color: "black",
+                color: colors.text,
               }}
               placeholder={item.placeHolder}
               placeholderTextColor="grey"

@@ -27,10 +27,10 @@ const EventModal: React.FC<{ eventModal: any; setEventModal: ()=>void }> = ({ ev
   const handleNavigate = () => {
     closeModal();
     if (eventModal?.navigation) {
-      navigation.navigate(eventModal.navigation,{data:eventModal.data});
+      navigation.navigate(eventModal.navigation,{url:eventModal.data});
     }
   };
-console.log( `${DOMAIN.IMG}banners${eventModal?.image}`, '---------------------- `${DOMAIN.IMG}banners${eventModal?.image}` ---------------------');
+console.log( eventModal?.image, '---------------------- eventModal?.image,---------------------');
   return (
     <Modal
       visible={eventModal?.visible}
@@ -51,7 +51,7 @@ console.log( `${DOMAIN.IMG}banners${eventModal?.image}`, '----------------------
          
             <Image
               source={{
-                uri: `${DOMAIN.IMG}banners/${eventModal?.image}`,
+                uri:eventModal?.image,
               }}
               style={styles.image}
               resizeMode="contain"

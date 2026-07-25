@@ -1,15 +1,18 @@
-import { StyleSheet, Text, TextInput, View } from 'react-native'
+import { StyleSheet, Text, TextInput } from 'react-native'
 import React, { useState } from 'react'
-import AuthScreenLayout from '../components/AuthScreenLayout';
+import AuthScreenLayout from '../components/AuthScreenLayout.tsx';
 import Button2 from '../components/Button2.tsx';
-import { FONT_FAMILY } from '../util/colors';
-import { ENDPOINT } from '../util/constant';
+import { FONT_FAMILY } from '../util/colors.tsx';
+import { ENDPOINT } from '../util/constant.ts';
 import { Toast } from 'react-native-toast-notifications';
 import { javascriptPost } from '../util/api.tsx';
+import { useAppTheme } from '../theme/AppThemeProvider.tsx';
 const SigninWithOTP = ({navigation}) => {
     
    const [usernameTextValue, setUsernameTextValue] = useState('');
     const [loadingData, setLoadingData] = useState(false);
+    const { colors } = useAppTheme();
+    const styles = createStyles(colors);
 
 
 
@@ -58,13 +61,13 @@ const SigninWithOTP = ({navigation}) => {
   };
   return (
    <AuthScreenLayout title={'Sign In With OTP'}>
-    <Text style={{fontFamily:FONT_FAMILY.bold,margin:10}}>Member ID</Text>
+    <Text style={[styles.label, {fontFamily:FONT_FAMILY.bold,margin:10}]}>Member ID</Text>
      <TextInput
     //   ref={passRef}
-        placeholder="MemberID (AA-01)"
+        placeholder="MemberID (A0000)"
         value={usernameTextValue}
         onChangeText={setUsernameTextValue}
-        placeholderTextColor={'grey'}
+        placeholderTextColor={colors.placeholder}
 
         style={styles.input}
         returnKeyType='done'
@@ -82,6 +85,18 @@ const SigninWithOTP = ({navigation}) => {
 
 export default SigninWithOTP
 
-const styles = StyleSheet.create({
-    input: { borderBottomWidth: 1, marginBottom: 12, padding: 12, borderRadius: 8 },
-})
+const createStyles = colors =>
+  StyleSheet.create({
+    label: {
+      color: colors.text,
+    },
+    input: {
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      marginBottom: 12,
+      padding: 12,
+      borderRadius: 8,
+      backgroundColor: colors.surface,
+      color: colors.text,
+    },
+  })

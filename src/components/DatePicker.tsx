@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import {  Text, TouchableOpacity, StyleSheet } from "react-native";
 import DatePicker from "react-native-date-picker";
 import moment from "moment";
-import { FONT_FAMILY, LIGHT_BLUE } from "../util/colors";
+import { FONT_FAMILY } from "../util/colors";
+import { useAppTheme } from "../theme/AppThemeProvider";
 
 
 interface DatePickerComponentProps {
@@ -23,6 +24,8 @@ const DatePickerComponent: React.FC<DatePickerComponentProps> = ({
   const [date, setDate] = useState<Date>(new Date());
   const [open, setOpen] = useState<boolean>(false);
   const [updateDate, setUpdateDate] = useState<boolean>(false);
+  const { colors, resolvedMode } = useAppTheme();
+  const styles = createStyles(colors);
 
   useEffect(() => {
     if (setResetDate === true) {
@@ -43,6 +46,7 @@ const DatePickerComponent: React.FC<DatePickerComponentProps> = ({
       <DatePicker
         modal
         mode="date"
+        theme={resolvedMode}
         open={open}
         date={date}
         minimumDate={minDate}
@@ -65,22 +69,31 @@ export default DatePickerComponent;
    Styles
 ----------------------------------------- */
 
-const styles = StyleSheet.create({
-  container: {
-    borderWidth: 0.5,
-    borderRadius: 10,
-    backgroundColor: LIGHT_BLUE,
-    padding: 12,
-    justifyContent: "center",
-    paddingHorizontal: 10,
-    margin: 10,
-    borderColor: "black",
-  },
-  text: {
-    color: "black",
-    fontFamily: FONT_FAMILY.normal,
-  },
-});
+const createStyles = (colors: {
+  background: string;
+  border: string;
+  surface: string;
+  surfaceAlt: string;
+  text: string;
+  textMuted: string;
+}) =>
+  StyleSheet.create({
+    container: {
+      borderWidth: 1,
+      borderRadius: 14,
+      backgroundColor: colors.surface,
+      padding: 12,
+      justifyContent: "center",
+      paddingHorizontal: 12,
+      margin: 10,
+      borderColor: colors.border,
+    },
+    text: {
+      color: colors.text,
+      fontFamily: FONT_FAMILY.normal,
+      fontSize: 14,
+    },
+  });
 
 // import React, { useState, useEffect } from "react";
 // import { View, Text, TouchableOpacity } from "react-native";

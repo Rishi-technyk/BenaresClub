@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import moment from "moment";
-import DatePickerComponent from "../components/DatePicker";
+import DatePickerComponent from "./DatePicker";
 import RNFS from "react-native-fs";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { useSelector } from "react-redux";
@@ -24,6 +24,9 @@ import { Toast } from "react-native-toast-notifications";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 import { ENDPOINT } from "../util/constant";
 import { RootState } from "../store/store";
+import UniversalModal from "./UniversalModal";
+import { useAppTheme } from "../theme/AppThemeProvider";
+import { FONT_FAMILY } from "../util/colors";
 
 
 interface DownloadModalProps {
@@ -43,7 +46,7 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ visible, setVisible, data
   const [resetDate, setResetDate] = useState<boolean>(false);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
-
+  const {colors}=useAppTheme();
   const { user, token } = useSelector((state: RootState) => state.auth);
 
   const navigation = useNavigation<NavigationProp<NavigationRoutes>>();
@@ -90,6 +93,7 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ visible, setVisible, data
       const response: ApiResponse<string> = await javascriptPost(apiRequestObject);
 
       setClick(null);
+      setVisible(false);
       setLoader(false);
 
       if (response.status === true) {
@@ -186,32 +190,23 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ visible, setVisible, data
   ----------------------------------------- */
 
   return (
-    <Modal
-      transparent
-      visible={visible}
-      presentationStyle={Platform.OS === "ios" ? "pageSheet" : "overFullScreen"}
-      onRequestClose={() => {
-        setVisible(false);
-        setClick(null);
-      }}
+    // <Modal
+    //   transparent
+    //   visible={visible}
+    //   presentationStyle={Platform.OS === "ios" ? "pageSheet" : "overFullScreen"}
+    //   onRequestClose={() => {
+    //     setVisible(false);
+    //     setClick(null);
+    //   }}
+    // >
+    <UniversalModal
+    title="Download Statement"
+    visible={visible}
+    setVisible={setVisible}
+    isFull={false}
     >
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={ModalStyles.modal}
-      >
-        <View style={ModalStyles.innerModalCont}>
-          <View style={InvoiceStyle.headingContainer}>
-            <Text style={InvoiceStyle.headingText}>Download Statement</Text>
-            <Icon
-              onPress={() => {
-                setVisible(false);
-                setClick(null);
-              }}
-              name="close"
-              size={25}
-              style={ModalStyles.cancelText}
-            />
-          </View>
+    
+          
 
           <FlatList
             data={arrData}
@@ -231,12 +226,12 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ visible, setVisible, data
                           : "checkbox-blank-circle-outline"
                       }
                       size={18}
-                      color={click === index ? "black" : "grey"}
+                      color={click === index ? colors.secondary : colors.text}
                     />
                   </View>
 
                   <View style={{ flex: 0.8 }}>
-                    <Text style={ModalStyles.downloadText}>{item}</Text>
+                    <Text style={{color:colors.text,fontFamily:FONT_FAMILY.medium}}>{item}</Text>
                   </View>
                 </TouchableOpacity>
 
@@ -250,7 +245,7 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ visible, setVisible, data
                   >
                     {/* START DATE */}
                     <View>
-                      <Text style={ModalStyles.headerStyle}>Start Date</Text>
+                      <Text style={{color:colors.text,fontFamily:FONT_FAMILY.medium}}>Start Date</Text>
                       <DatePickerComponent
                         placeholder="Start Date"
                         setResetDate={resetDate}
@@ -261,7 +256,7 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ visible, setVisible, data
 
                     {/* END DATE */}
                     <View>
-                      <Text style={ModalStyles.headerStyle}>End Date</Text>
+                      <Text style={{color:colors.text,fontFamily:FONT_FAMILY.medium}}>End Date</Text>
                       <DatePickerComponent
                         placeholder="End Date"
                         setResetDate={resetDate}
@@ -288,9 +283,8 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ visible, setVisible, data
                 <Text style={ModalStyles.confirmText}>Download</Text>
               </TouchableOpacity>
             )}
-        </View>
-      </ScrollView>
-    </Modal>
+      {/* </ScrollView> */}
+   </UniversalModal>
   );
 };
 

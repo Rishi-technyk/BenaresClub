@@ -1,760 +1,674 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
+  Pressable,
   ScrollView,
   StyleSheet,
-  Pressable,
-  Alert,
-  ActivityIndicator,
+  Text,
   TextInput,
-} from "react-native";
-import {ICON_URL} from '@env'
-import Icon from "react-native-vector-icons/MaterialIcons";
-import RazorpayCheckout from "react-native-razorpay";
-import { useRoute, useNavigation } from "@react-navigation/native";
-import { ENDPOINT } from "../../util/constant";
-import { javascriptGet, javascriptPost } from "../../util/api";
-import { useSelector } from "react-redux";
-import { DARK_BLUE, FONT_FAMILY, } from "../../util/colors";
-import { Toast } from "react-native-toast-notifications";
-import { ICONS } from "../../../assets/icons.ts";
-import { useQueryClient } from "@tanstack/react-query";
-import { RootState } from "../../store/store.tsx";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { AppStackParamList } from "../../navigation/AppDrawer.tsx";
+  View,
+} from 'react-native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useSelector } from 'react-redux';
+import { useQueryClient } from '@tanstack/react-query';
 
-type Props = NativeStackScreenProps<AppStackParamList,'EventCheckOut'>;
-const  EventCheckOut:React.FC<Props>=()=> {
-  const route = useRoute<any>();
+import Header from '../../components/Header.tsx';
+import BookingHeroCard from '../../components/booking/BookingHeroCard.tsx';
+import DetailSection from '../../components/booking/DetailSection.tsx';
+import NewButton from '../../components/Button.tsx';
+import AppAlertModal from '../../components/feedback/AppAlertModal.tsx';
+import { useAppAlert } from '../../hooks/useAppAlert.ts';
+import { useAppTheme } from '../../theme/AppThemeProvider.tsx';
+import { ENDPOINT } from '../../util/constant.ts';
+import { javascriptGet, javascriptPost } from '../../util/api.tsx';
+import { FONT_FAMILY } from '../../util/colors.tsx';
+import { ICONS } from '../../../assets/icons.ts';
+import { RootState } from '../../store/store.tsx';
+import { AppStackParamList } from '../../navigation/AppDrawer.tsx';
+
+type Props = NativeStackScreenProps<AppStackParamList, 'EventCheckOut'>;
+
+const EventCheckOut: React.FC<Props> = ({ navigation, route }) => {
   const paymentProcessing = useRef(false);
-const paymentHandled = useRef(false);
-  const navigation = useNavigation();
   const queryClient = useQueryClient();
-  const [loading,setLoading]=useState(false)
-  const userData = useSelector((state:RootState) => state.auth);
-  const [selectedPayment, setSelectedPayment] = useState(null);
-    const [settings, setSettings] = useState<null | []>(null); 
-  const { event, tickets, cart, totalAmount,waiters,member ,selectedSeats=[]} = route.params;
+  const { colors } = useAppTheme();
+  const { alertState, showAlert, hideAlert } = useAppAlert();
+  const [loading, setLoading] = useState(false);
+  const userData = useSelector((state: RootState) => state.auth);
+  const [selectedPayment, setSelectedPayment] = useState<any>(null);
+  const [settings, setSettings] = useState<any[]>([]);
   const [referenceNo, setReferenceNo] = useState('');
-const waiterAmount =
-  event.waiter ? waiters * event.waiter.price : 0;
-  const selectedTickets = tickets.filter(
-    (t: any) => cart[t.id] > 0
-  );
+  const {
+    event,
+    tickets,
+    cart,
+    totalAmount,
+    waiters,
+    member,
+    selectedSeats = [],
+  } = route.params;
 
+  const waiterAmount = event?.waiter ? waiters * event.waiter.price : 0;
+  const selectedTickets = tickets.filter((ticket: any) => cart[ticket.id] > 0);
   const serviceChargePercent = Number(event?.service_charge || 0);
-const gstPercent = Number(event?.gst || 0);
+  const gstPercent = Number(event?.gst || 0);
+  const serviceChargeAmount = (totalAmount * serviceChargePercent) / 100;
+  const gstAmount = (totalAmount * gstPercent) / 100;
 
-const serviceChargeAmount =
-  (totalAmount * serviceChargePercent) / 100;
+  const groupedSeats = useMemo(() => {
+    return selectedSeats.reduce((acc: any, seat: any) => {
+      const type = seat?.category?.seat_type || 'other';
+      if (!acc[type]) {
+        acc[type] = {
+          type,
+          price: Number(seat?.category?.price || 0),
+          seats: [],
+        };
+      }
+      acc[type].seats.push(seat);
+      return acc;
+    }, {});
+  }, [selectedSeats]);
 
-const gstAmount =
-  (totalAmount * gstPercent) / 100;
+  const seatGroups = Object.values(groupedSeats);
 
+  const fetchSettings = useCallback(async () => {
+    const response = await javascriptGet({
+      path: ENDPOINT.event_admin_payment_type,
+      Token: userData?.token,
+      body: {},
+    });
 
+    if (response?.status) {
+      setSettings(response?.payment_types || []);
+    }
+  }, [userData?.token]);
 
-const handlePaymentSuccess = async (paymentData: any) => {
-  if (paymentHandled.current) return;
+  useEffect(() => {
+    if (userData?.user?.role === 'Event Admin') {
+      fetchSettings();
+    }
+  }, [fetchSettings, userData?.user?.role]);
 
-  paymentHandled.current = true;
-  setLoading(true);
-
-  try {
+  const handleFreeBooking = async () => {
     const payload = {
       event_id: event.id,
-      is_free: false,
+      is_free: true,
       waiters,
-      razorpay_order_id: paymentData.razorpay_order_id,
-      razorpay_payment_id: paymentData.razorpay_payment_id,
-      razorpay_signature: paymentData.razorpay_signature,
-      tickets: selectedTickets.map((t: any) => ({
-        id: t.id,
-        type: t.type,
-        quantity: cart[t.id],
+      tickets: selectedTickets.map((ticket: any) => ({
+        id: ticket.id,
+        type: ticket.type,
+        quantity: cart[ticket.id],
       })),
       seatGroups,
     };
 
-    const res = await javascriptPost({
+    const response = await javascriptPost({
       path: ENDPOINT.process_event_payment,
-      Token: userData.token,
+      Token: userData?.token,
       body: payload,
     });
 
-    if (res?.status) {
-      navigation.replace("EventBookingDetails", {
-        bookingId: res.booking_id,
-      });
-    } else {
-      Alert.alert("Payment Verification Failed", res?.message || "Try again");
-    }
-  } catch (error) {
-    Alert.alert("Payment Error", "Unable to verify payment.");
-  } finally {
     setLoading(false);
-    paymentProcessing.current = false;
-  }
-};
-const openRazorpay = async (orderId: string, amount: number, key: string) => {
-  const options = {
-    key,
-    order_id: orderId,
-    amount: amount * 100,
-    currency: "INR",
-    name: event.name,
-    description: "Event Ticket Booking",
-    image:
-     ICON_URL,
-    prefill: {
-      name: userData?.user?.DisplayName,
-      email: userData?.user?.Email,
-      contact: userData?.user?.Mobile,
-    },
-    theme: { color: DARK_BLUE },
-    notes: {
-      MemberID: userData?.user?.MemberID || "",
-      SC_ID: userData?.user?.SC_ID || "",
-      BookingType: "Event Booking",
-      MemberName: userData?.user?.DisplayName || "",
-    },
+
+    if (response?.status) {
+      navigation.replace('EventBookingDetails', {
+        bookingId: response?.booking_id,
+      });
+      return;
+    }
+
+    showAlert({
+      title: 'Booking failed',
+      message: response?.message || 'Free booking could not be completed.',
+      tone: 'danger',
+    });
   };
 
-  try {
-    const data = await RazorpayCheckout.open(options);
+  const bookTickets = async () => {
+    if (paymentProcessing.current) {
+      return;
+    }
 
-    await handlePaymentSuccess(data);
-  } catch (error: any) {
-    /**
-     * iOS sometimes fires cancel even after success
-     * so ignore if success already handled
-     */
-    if (paymentHandled.current) return;
-
-    Toast.show("Payment cancelled", { type: "danger" });
+    paymentProcessing.current = true;
 
     try {
-      await javascriptPost({
-        path: ENDPOINT.event_payment_failed,
-        Token: userData.token,
-        body: {
+      if (userData?.user?.role === 'Event Admin') {
+        if (!selectedPayment?.id) {
+          showAlert({
+            title: 'Payment method required',
+            message: 'Please select a payment method before continuing.',
+            tone: 'warning',
+          });
+          paymentProcessing.current = false;
+          return;
+        }
+
+        if (selectedPayment?.ref_no && referenceNo.trim() === '') {
+          showAlert({
+            title: 'Reference required',
+            message: 'Please enter the reference number for this payment method.',
+            tone: 'warning',
+          });
+          paymentProcessing.current = false;
+          return;
+        }
+
+        setLoading(true);
+        const payload = {
           event_id: event.id,
-          razorpay_order_id: orderId,
-          reason: error?.description || "User cancelled payment",
-          total_amount: totalAmount,
-        },
-      });
-    } catch {}
+          tickets: selectedTickets.map((ticket: any) => ({
+            id: ticket.id,
+            quantity: cart[ticket.id],
+          })),
+          waiters,
+          member,
+          payment_type: settings?.find(item => item.id === selectedPayment.id)?.name,
+          reference_no: referenceNo || 'N/A',
+          seatGroups,
+        };
 
-    setLoading(false);
-    paymentProcessing.current = false;
-  }
-};
-const handleFreeBooking = async () => {
-  const payload = {
-    event_id: event.id,
-    is_free: true,
-    waiters,
-    tickets: selectedTickets.map((t) => ({
-      id: t.id,
-      type: t.type,
-      quantity: cart[t.id],
-    })),
-    seatGroups
-  };
+        const response = await javascriptPost({
+          path: ENDPOINT.process_admin_payment,
+          Token: userData?.token,
+          body: payload,
+        });
 
-  const res = await javascriptPost({
-    path: ENDPOINT.process_event_payment,
-    Token: userData.token,
-    body: payload,
-  });
-console.log( res, '---------------------- res --from APio-------------------');
-  setLoading(false);
-
-  if (res?.status) {
-    navigation.replace("EventBookingDetails", {
-      bookingId: res.booking_id,
-    });
-  } else {
-    Alert.alert(res.message || "Free booking failed");
-  }
-};
-  const fetchSettings = async () => {
-    const apiObj = {
-      path: ENDPOINT.event_admin_payment_type,
-      Token: userData.token,
-      body: {},
-    };
-    const res = await javascriptGet(apiObj);
-    if (res?.status) {
-
-      setSettings(res.payment_types);
-      setLoading(false);
-    }
-  };
-useEffect(()=>{
-  if (userData?.user?.role === "Event Admin") {
-    fetchSettings()
-  }
-},[])
-const groupedSeats = selectedSeats.reduce((acc: any, seat: any) => {
-
-  const type = seat.category?.seat_type || 'other'
-
-  if (!acc[type]) {
-    acc[type] = {
-      type,
-      price: Number(seat.category?.price || 0),
-      seats: []
-    }
-  }
-
-  acc[type].seats.push(seat)
-
-  return acc
-
-}, {})
-const seatGroups = Object.values(groupedSeats)
-
-const bookTickets = async () => {
-  if (paymentProcessing.current) return;
-
-  paymentProcessing.current = true;
-
-  try {
-    if (userData?.user?.role === "Event Admin") {
-      if (!selectedPayment?.id) {
-        Alert.alert("Missing Payment Type", "Please select a payment type.");
+        setLoading(false);
         paymentProcessing.current = false;
+
+        if (!response?.status) {
+          showAlert({
+            title: 'Booking failed',
+            message:
+              response?.message || 'Something went wrong while confirming the booking.',
+            tone: 'danger',
+          });
+          return;
+        }
+
+        await queryClient.invalidateQueries(['eventAdminDashboard']);
+        navigation.replace('EventBookingDetails', {
+          bookingId: response?.booking_id,
+        });
         return;
       }
 
-      if (selectedPayment?.ref_no && referenceNo.trim() === "") {
-        Alert.alert("Reference Required", "Please enter reference number.");
-        paymentProcessing.current = false;
-        return;
-      }
       setLoading(true);
       const payload = {
         event_id: event.id,
-        tickets: selectedTickets.map((t: any) => ({
-          id: t.id,
-          quantity: cart[t.id],
+        tickets: selectedTickets.map((ticket: any) => ({
+          id: ticket.id,
+          quantity: cart[ticket.id],
         })),
         waiters,
-        member: member,
-        
-        payment_type: settings?.find(i => i.id === selectedPayment.id)?.name,
-        reference_no: referenceNo || "N/A",
-        seatGroups
+        seatGroups,
       };
-      const res = await javascriptPost({
-        path: ENDPOINT.process_admin_payment,
-        Token: userData.token,
+
+      const response = await javascriptPost({
+        path: ENDPOINT.ticket_preview,
+        Token: userData?.token,
         body: payload,
       });
 
-      setLoading(false);
-      paymentProcessing.current = false;
-
-      if (!res?.status) {
-        Alert.alert("Booking Failed", res?.message || "Something went wrong.");
+      if (response?.status !== true) {
+        setLoading(false);
+        paymentProcessing.current = false;
+        showAlert({
+          title: 'Payment unavailable',
+          message: response?.message || 'Payment initiation failed.',
+          tone: 'danger',
+        });
         return;
       }
 
-      await queryClient.invalidateQueries(["eventAdminDashboard"]);
+      if (response?.is_free) {
+        await handleFreeBooking();
+        paymentProcessing.current = false;
+        return;
+      }
 
-      navigation.replace("EventBookingDetails", {
-        bookingId: res.booking_id,
-      });
+      const orderData = {
+        ...(response?.payment || {}),
+        ...(response?.payment ? {} : response),
+        end_point: ENDPOINT.process_event_payment,
+        order_id: response?.payment?.order_id || response?.order_id,
+        merchant_order_id:
+          response?.payment?.merchant_order_id || response?.merchant_order_id,
+        amount: response?.payment?.amount || response?.amount,
+        gateway: response?.payment?.gateway || response?.gateway,
+        checkout: response?.payment?.checkout || response?.checkout,
+        payment_url: response?.payment?.payment_url || response?.payment_url,
+        access_key: response?.payment?.access_key || response?.payment_session_id,
+        status_reference:
+          response?.payment?.status_reference ||
+          response?.merchant_order_id ||
+          response?.order_id,
+      };
 
-      return;
-    }
-
-    /**
-     * MEMBER FLOW
-     */
-
-    setLoading(true);
-
-    const payload = {
-      event_id: event.id,
-      tickets: selectedTickets.map((t: any) => ({
-        id: t.id,
-        quantity: cart[t.id],
-      })),
-      waiters,
-      seatGroups
-    };
-   
-    const res = await javascriptPost({
-      path: ENDPOINT.ticket_preview,
-      Token: userData.token,
-      body: payload,
-    });
-
-    if (res?.status !==true) {
       setLoading(false);
       paymentProcessing.current = false;
-      Alert.alert(res.message || "Payment initiation failed");
-      return;
-    }
-
-    /**
-     * FREE BOOKING
-     */
-    if (res.is_free) {
-      await handleFreeBooking();
+      navigation.navigate('UniversalPayment', {
+        type: 'Event Booking',
+        orderData: {
+          ...orderData,
+          event_id: event.id,
+        },
+      });
+    } catch (error: any) {
+      setLoading(false);
       paymentProcessing.current = false;
-      return;
+      showAlert({
+        title: 'Something went wrong',
+        message: error?.message || 'Unable to continue with event payment.',
+        tone: 'danger',
+      });
     }
-    /**
-     * PAID BOOKING
-     */
-    await openRazorpay(res.order_id, res.amount, res.razorpay_key);
-  } catch (error: any) {
-    setLoading(false);
-    paymentProcessing.current = false;
+  };
 
-    Alert.alert("Error", error?.message || "Something went wrong.");
-  }
-};
+  const seatsTotal = selectedSeats.reduce(
+    (total: number, seat: any) => total + Number(seat?.category?.price || 0),
+    0,
+  );
+  const grandTotal = totalAmount + serviceChargeAmount + gstAmount + seatsTotal;
 
-const calculateSeatsTotal = () => {
-  return selectedSeats.reduce((total: number, seat: any) => {
-    const price = Number(seat.category?.price || 0);
-    return total + price;
-  }, 0);
-}
-const grandTotal =
-  totalAmount + serviceChargeAmount + gstAmount + calculateSeatsTotal();
   return (
-    <View style={styles.container}>
-      {/* 🔹 Header */}
-      <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back-ios-new" size={22} color={'black'} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Review & Pay</Text>
-        <View style={{ width: 22 }} />
-      </View>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Header title="Review & Pay" />
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* 🔹 Order Summary */}
-        <View style={styles.section}>
-          <View style={styles.rowBetween}>
-            <Text style={styles.h1}>Order Summary</Text>
-            <View style={styles.badge}>
-             <Text style={styles.badgeText}>Pending Payment</Text>
-            </View>
-          </View>
+        <BookingHeroCard
+          eyebrow="Payment Review"
+          title={event?.name || 'Event booking'}
+          subtitle={`${selectedTickets.length} ticket type(s) • ${selectedSeats.length} seat(s) • ${waiters} waiter(s)`}
+          status={loading ? 'Processing' : 'Pending payment'}
+          statusTone={loading ? 'warning' : 'neutral'}
+          meta={[
+            { label: 'Subtotal', value: `Rs. ${totalAmount.toFixed(2)}` },
+            { label: 'Seat total', value: `Rs. ${seatsTotal.toFixed(2)}` },
+            { label: 'Payable', value: `Rs. ${grandTotal.toFixed(2)}` },
+          ]}
+        />
 
-          <Text style={styles.refText}>
-            Booking Ref: #TK-{Date.now().toString().slice(-5)}
-          </Text>
-        </View>
-
-        {/* 🔹 Ticket Items */}
-        {selectedTickets.map((item: any) => (
-          <View key={item.id} style={styles.ticketItem}>
-            <View style={styles.iconBox}>
-              <Icon name="confirmation-number" size={22} color="#135bec" />
-            </View>
-
-            <View style={{ flex: 1 }}>
-              <Text style={styles.ticketTitle}>{item.title}</Text>
-              <Text style={styles.qtyText}>
-                Qty: {cart[item.id]}
+        <DetailSection
+          title="Pass mix"
+          subtitle="This summary is derived from the exact ticket quantities being posted for checkout."
+          delay={40}
+        >
+          {selectedTickets.map((item: any) => (
+            <View
+              key={item.id}
+              style={[
+                styles.lineCard,
+                {
+                  backgroundColor: colors.surfaceAlt,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <View style={styles.lineCardIcon}>
+                <Icon name="ticket-confirmation-outline" size={20} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.lineCardTitle, { color: colors.text }]}>
+                  {item.title}
+                </Text>
+                <Text style={[styles.lineCardMeta, { color: colors.textMuted }]}>
+                  Qty {cart[item.id]} • Rs. {Number(item.price).toFixed(2)} each
+                </Text>
+              </View>
+              <Text style={[styles.lineCardAmount, { color: colors.text }]}>
+                Rs. {(Number(item.price) * cart[item.id]).toFixed(2)}
               </Text>
             </View>
+          ))}
+        </DetailSection>
 
-            <View style={{ alignItems: "flex-end" }}>
-              <Text style={styles.ticketPrice}>
-                ₹{item.price}
-              </Text>
-              <Text style={styles.qtyText}>x{cart[item.id]}</Text>
-            </View>
-          </View>
-        ))}
-{waiters > 0 && (
-   <View  style={styles.waiterItem}>
-  <View style={styles.rowBetween}>
-    <Text style={styles.grayText}>
-      Waiter ({waiters} × ₹{event.waiter.price})
-    </Text>
-    <Text style={styles.grayText}>₹{waiterAmount.toFixed(2)}</Text>
-  </View>
-  </View>
-)}
-
-{seatGroups.map((group: any) => (
-
-  <View key={group.type} style={[styles.waiterItem,]}>
-    <View style={[styles.rowBetween,]}>
-  <Text   style={[styles.grayText,{maxWidth:'80%'}]}>
-        {group.type.toUpperCase()} ({group.seats.length})
-        {" "}
-        {group.seats.map((s:any)=>s.seat_code).join(', ')}
-      </Text>
-    
-
-      <Text style={styles.grayText}>
-        ₹{(group.seats.length * group.price).toFixed(2)}
-      </Text>
-
-    </View>
-  </View>
-
-))}
-
-        {/* 🔹 Price Breakdown */}
-  <View style={styles.breakdown}>
-  <View style={styles.rowBetween}>
-    <Text style={styles.grayText}>Subtotal</Text>
-    
-    <Text style={styles.grayText}>₹{totalAmount.toFixed(2)}</Text>
-  </View>
- {seatGroups.length > 0 && (
-<View style={styles.rowBetween}>
-    <Text style={styles.grayText}>Seats Total</Text>
-    
-    <Text style={styles.grayText}>₹{calculateSeatsTotal().toFixed(2)}</Text>
-  </View>)}
-
-  {serviceChargePercent > 0 && (
-    <View style={styles.rowBetween}>
-      <Text style={styles.grayText}>
-        Service Fee ({serviceChargePercent}%)
-      </Text>
-      <Text style={styles.grayText}>
-        ₹{serviceChargeAmount.toFixed(2)}
-      </Text>
-    </View>
-  )}
-
-  {gstPercent > 0 && (
-    <View style={styles.rowBetween}>
-      <Text style={styles.grayText}>
-        GST ({gstPercent}%)
-      </Text>
-      <Text style={styles.grayText}>
-        ₹{gstAmount.toFixed(2)}
-      </Text>
-    </View>
-  )}
-
-  <View style={styles.divider} />
-
-  <View style={styles.rowBetween}>
-    <Text style={styles.totalText}>Total</Text>
-    <Text style={styles.totalAmount}>
-      ₹{grandTotal .toFixed(2)}
-    </Text>
-  </View>
-</View>
-{/* 🔹 Payment Type Selection (Only for EventAdmin) */}
-{userData?.user?.role === "Event Admin" && settings && (
-  <View style={styles.paymentSection}>
-
-    <Text style={styles.sectionTitle}>Select Payment Method</Text>
-
- 
-{selectedPayment?.ref_no  &&(
-          <View style={{flex:1,marginBottom:12,}}>
-            <Text style={styles.grayText}>Reference No:</Text>
-            <TextInput
-            placeholder="Please Enter Ref No."
-              style={[styles.textInput,]}
-              placeholderTextColor={'grey'}
-              value={referenceNo}
-              onChangeText={setReferenceNo}
-
-            />
-          </View>
-)}
-    <View style={styles.paymentList}>
-      {settings.map((p: any) => {
-       const IconComponent = ICONS[p.icon_type] || ICONS.MaterialIcons;
-
-        const isSelected = selectedPayment?.id === p.id;
-
-        return (
-          <Pressable
-            key={p.id}
-            onPress={() => setSelectedPayment(p)}
-            style={[
-              styles.paymentItem,
-              isSelected && styles.paymentItemSelected,
-            ]}
+        {waiters > 0 || seatGroups.length > 0 ? (
+          <DetailSection
+            title="Add-ons and seats"
+            subtitle="Waiter and seat allocations will move with the same payment request."
+            delay={70}
           >
-            <IconComponent
-              name={p.icon}
-              size={28}
-              color={isSelected ? "#fff" : "#135bec"}
-            />
+            {waiters > 0 ? (
+              <View
+                style={[
+                  styles.inlineRow,
+                  { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+                ]}
+              >
+                <Text style={[styles.inlineLabel, { color: colors.text }]}>
+                  Waiter ({waiters} × Rs. {Number(event?.waiter?.price || 0).toFixed(2)})
+                </Text>
+                <Text style={[styles.inlineValue, { color: colors.text }]}>
+                  Rs. {waiterAmount.toFixed(2)}
+                </Text>
+              </View>
+            ) : null}
 
-            <Text style={[styles.paymentName, isSelected && { color: "#fff" }]}>
-              {p.name}
+            {seatGroups.map((group: any) => (
+              <View
+                key={group.type}
+                style={[
+                  styles.inlineRow,
+                  { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+                ]}
+              >
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={[styles.inlineLabel, { color: colors.text }]}>
+                    {String(group.type).toUpperCase()} ({group.seats.length})
+                  </Text>
+                  <Text style={[styles.inlineMeta, { color: colors.textMuted }]}>
+                    {group.seats.map((seat: any) => seat.seat_code).join(', ')}
+                  </Text>
+                </View>
+                <Text style={[styles.inlineValue, { color: colors.text }]}>
+                  Rs. {(group.seats.length * group.price).toFixed(2)}
+                </Text>
+              </View>
+            ))}
+          </DetailSection>
+        ) : null}
+
+        <DetailSection
+          title="Charges"
+          subtitle="Service and tax are calculated here before initiating payment."
+          delay={100}
+        >
+          <View style={styles.chargeRow}>
+            <Text style={[styles.chargeLabel, { color: colors.textMuted }]}>Subtotal</Text>
+            <Text style={[styles.chargeValue, { color: colors.text }]}>
+              Rs. {totalAmount.toFixed(2)}
             </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  </View>
-)}
+          </View>
+          {seatsTotal > 0 ? (
+            <View style={styles.chargeRow}>
+              <Text style={[styles.chargeLabel, { color: colors.textMuted }]}>Seats total</Text>
+              <Text style={[styles.chargeValue, { color: colors.text }]}>
+                Rs. {seatsTotal.toFixed(2)}
+              </Text>
+            </View>
+          ) : null}
+          {serviceChargePercent > 0 ? (
+            <View style={styles.chargeRow}>
+              <Text style={[styles.chargeLabel, { color: colors.textMuted }]}>
+                Service charge ({serviceChargePercent}%)
+              </Text>
+              <Text style={[styles.chargeValue, { color: colors.text }]}>
+                Rs. {serviceChargeAmount.toFixed(2)}
+              </Text>
+            </View>
+          ) : null}
+          {gstPercent > 0 ? (
+            <View style={styles.chargeRow}>
+              <Text style={[styles.chargeLabel, { color: colors.textMuted }]}>
+                GST ({gstPercent}%)
+              </Text>
+              <Text style={[styles.chargeValue, { color: colors.text }]}>
+                Rs. {gstAmount.toFixed(2)}
+              </Text>
+            </View>
+          ) : null}
+          <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
+            <Text style={[styles.totalLabel, { color: colors.text }]}>Grand total</Text>
+            <Text style={[styles.totalValue, { color: colors.success }]}>
+              Rs. {grandTotal.toFixed(2)}
+            </Text>
+          </View>
+        </DetailSection>
 
+        {userData?.user?.role === 'Event Admin' && settings?.length ? (
+          <DetailSection
+            title="Payment method"
+            subtitle="Pick how this admin booking should be recorded before confirmation."
+            delay={130}
+          >
+            {selectedPayment?.ref_no ? (
+              <>
+                <Text style={[styles.fieldLabel, { color: colors.text }]}>Reference number</Text>
+                <TextInput
+                  placeholder="Enter payment reference"
+                  placeholderTextColor={colors.textMuted}
+                  style={[
+                    styles.referenceInput,
+                    {
+                      backgroundColor: colors.surfaceAlt,
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
+                  value={referenceNo}
+                  onChangeText={setReferenceNo}
+                />
+              </>
+            ) : null}
+
+            <View style={styles.paymentGrid}>
+              {settings.map((payment: any) => {
+                const IconComponent = ICONS[payment.icon_type] || ICONS.MaterialIcons;
+                const active = selectedPayment?.id === payment.id;
+
+                return (
+                  <Pressable
+                    key={payment.id}
+                    onPress={() => setSelectedPayment(payment)}
+                    style={[
+                      styles.paymentCard,
+                      {
+                        backgroundColor: active ? colors.primary : colors.surfaceAlt,
+                        borderColor: active ? colors.primary : colors.border,
+                      },
+                    ]}
+                  >
+                    <IconComponent
+                      name={payment.icon}
+                      size={26}
+                      color={active ? colors.onPrimary : colors.primary}
+                    />
+                    <Text
+                      style={[
+                        styles.paymentLabel,
+                        { color: active ? colors.onPrimary : colors.text },
+                      ]}
+                    >
+                      {payment.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </DetailSection>
+        ) : null}
       </ScrollView>
 
-      {/* 🔹 Bottom Pay Button */}
-      <View style={styles.footer}>
-      <Pressable
-  onPress={bookTickets}
-  disabled={loading}
-  style={[styles.payBtn, loading && { opacity: 0.6 }]}
-
->{loading&&<ActivityIndicator size={'small'} color={'white'} />}
-          <Text style={styles.payText}>Pay Now</Text>
-          <Icon name="arrow-forward" size={20} color="white" />
-        </Pressable>
-
-        <Text style={styles.footerNote}>
-          Secured by Razorpay. By paying, you agree to our Terms.
-        </Text>
+      <View
+        style={[
+          styles.footer,
+          { backgroundColor: colors.surface, borderTopColor: colors.border },
+        ]}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.footerTitle, { color: colors.text }]}>
+            Rs. {grandTotal.toFixed(2)}
+          </Text>
+          <Text style={[styles.footerSubtitle, { color: colors.textMuted }]}>
+            Secured by the active club payment gateway.
+          </Text>
+        </View>
+        <NewButton
+          text={loading ? 'Processing...' : 'Pay now'}
+          onPress={bookTickets}
+          loading={loading}
+        />
       </View>
+
+      <AppAlertModal
+        visible={alertState.visible}
+        title={alertState.title}
+        message={alertState.message}
+        tone={alertState.tone}
+        primaryLabel={alertState.primaryLabel}
+        secondaryLabel={alertState.secondaryLabel}
+        onDismiss={hideAlert}
+        onPrimaryPress={() => {
+          hideAlert();
+          alertState.onPrimaryPress?.();
+        }}
+        onSecondaryPress={() => {
+          hideAlert();
+          alertState.onSecondaryPress?.();
+        }}
+      />
     </View>
   );
-}
+};
 
-export default EventCheckOut;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f6f6f8",
   },
-
-  header: {
-    height: 56,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderColor: "#e5e7eb",
+  content: {
+    paddingBottom: 120,
   },
-
-  headerTitle: {
+  lineCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 10,
+    gap: 12,
+  },
+  lineCardIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(21, 24, 49, 0.08)',
+  },
+  lineCardTitle: {
+    fontSize: 14,
+    fontFamily: FONT_FAMILY.semiBold,
+  },
+  lineCardMeta: {
+    marginTop: 4,
+    fontSize: 12,
+    fontFamily: FONT_FAMILY.normal,
+  },
+  lineCardAmount: {
+    fontSize: 13,
+    fontFamily: FONT_FAMILY.bold,
+  },
+  inlineRow: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  inlineLabel: {
+    fontSize: 13,
+    fontFamily: FONT_FAMILY.semiBold,
+  },
+  inlineMeta: {
+    marginTop: 4,
+    fontSize: 11,
+    lineHeight: 16,
+    fontFamily: FONT_FAMILY.normal,
+  },
+  inlineValue: {
+    fontSize: 13,
+    fontFamily: FONT_FAMILY.bold,
+  },
+  chargeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  chargeLabel: {
+    fontSize: 13,
+    fontFamily: FONT_FAMILY.normal,
+  },
+  chargeValue: {
+    fontSize: 14,
+    fontFamily: FONT_FAMILY.semiBold,
+  },
+  totalRow: {
+    marginTop: 4,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalLabel: {
+    fontSize: 15,
+    fontFamily: FONT_FAMILY.bold,
+  },
+  totalValue: {
     fontSize: 18,
     fontFamily: FONT_FAMILY.bold,
-    color:'black'
   },
-
-  content: {
-    padding: 16,
-    paddingBottom: 160,
-  },
-
-  section: {
-    marginBottom: 16,
-  },
-
-  h1: {
-    fontSize: 22,
-    fontFamily: FONT_FAMILY.bold,
-    color:'black'
-  },
-
-  badge: {
-    backgroundColor: "#e5e7eb",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-
-  badgeText: {
-    fontSize: 12,
-    color: "#6b7280",
-    fontFamily: FONT_FAMILY.bold,
-  },
-
-  refText: {
-    marginTop: 4,
+  fieldLabel: {
+    marginBottom: 8,
     fontSize: 13,
-    color: "#6b7280",
+    fontFamily: FONT_FAMILY.semiBold,
   },
-
-  ticketItem: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  waiterItem:{ backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 3,}
-,
-  iconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: "#e8efff",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-textInput:{
+  referenceInput: {
+    minHeight: 52,
     borderWidth: 1,
-    borderColor: 'black',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: 16,
+    paddingHorizontal: 14,
     fontSize: 14,
-    color: 'black',
-    minWidth: 150,
-    
-},
-  ticketTitle: {
-    fontSize: 15,
-    fontFamily: FONT_FAMILY.bold,
-    color:'black'
+    fontFamily: FONT_FAMILY.normal,
+    marginBottom: 14,
   },
-
-  qtyText: {
-    fontSize: 12,
-    color: "#6b7280",
-    fontFamily:FONT_FAMILY.light
+  paymentGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
   },
-
-  ticketPrice: {
-    fontSize: 15,
-    fontFamily: FONT_FAMILY.bold,
-    color:'black'
+  paymentCard: {
+    width: '48%',
+    minHeight: 92,
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-
-  breakdown: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 16,
-    marginTop: 16,
+  paymentLabel: {
+    marginTop: 10,
+    fontSize: 13,
+    textAlign: 'center',
+    fontFamily: FONT_FAMILY.semiBold,
   },
-
-  rowBetween: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  grayText: {
-    fontSize: 14,
-    color: "#6b7280",
-    fontFamily:FONT_FAMILY.normal
-  },
-
-  divider: {
-    height: 1,
-    backgroundColor: "#e5e7eb",
-    marginVertical: 10,
-  },
-
-  totalText: {
-    fontSize: 16,
-    fontFamily: FONT_FAMILY.bold,
-    color:'black'
-  },
-
-  totalAmount: {
-    fontSize: 22,
-    fontFamily: FONT_FAMILY.bold,
-      color:'black'
-  },
-
   footer: {
-    position: "absolute",
-    bottom: 0,
+    position: 'absolute',
     left: 0,
     right: 0,
-    backgroundColor: "#fff",
-    padding: 16,
-    paddingBottom: 24,
+    bottom: 0,
     borderTopWidth: 1,
-    borderColor: "#e5e7eb",
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
   },
-
-  payBtn: {
-    backgroundColor: "#135bec",
-    height: 54,
-    borderRadius: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-
-  payText: {
-    color: "#fff",
-    fontSize: 16,
+  footerTitle: {
+    fontSize: 20,
     fontFamily: FONT_FAMILY.bold,
   },
-
-  footerNote: {
-    marginTop: 8,
-    fontSize: 11,
-    color: "#9ca3af",
-    textAlign: "center",
+  footerSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    fontFamily: FONT_FAMILY.normal,
   },
-  paymentSection: {
-  backgroundColor: "#fff",
-  padding: 16,
-  borderRadius: 14,
-  marginTop: 20,
-  marginBottom: 20,
-},
-
-sectionTitle: {
-  fontSize: 18,
-  fontFamily: FONT_FAMILY.bold,
-  marginBottom: 12,
-  color: "black",
-},
-
-paymentList: {
-  flexDirection: "row",
-  flexWrap: "wrap",
-  justifyContent: "space-between",
-},
-
-paymentItem: {
-  width: "48%",
-  padding: 14,
-  borderRadius: 14,
-  backgroundColor: "#e8f0ff",
-  alignItems: "center",
-  marginBottom: 12,
-  borderWidth: 2,
-  borderColor: "transparent",
-},
-
-paymentItemSelected: {
-  backgroundColor: "#135bec",
-  borderColor: "#0b49c5",
-},
-
-paymentName: {
-  fontSize: 14,
-  marginTop: 6,
-  fontFamily: FONT_FAMILY.semiBold,
-  color: "#135bec",
-},
-
 });
+
+export default EventCheckOut;

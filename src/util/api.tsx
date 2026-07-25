@@ -1,4 +1,4 @@
-import { DOMAIN, NETWORK_CONSTANTS } from '../util/constant';
+import { DOMAIN, NETWORK_CONSTANTS } from './constant';
 
 
 /* ------------------------------------------------------------------
@@ -27,7 +27,7 @@ export function javascriptPost<T = any>(
   apiRequestObject: ApiRequestObject
 ): Promise<ApiResponse<T>> {
   const path = `${DOMAIN.BASE}${apiRequestObject.path}`;
-  console.log(path, "---------------path---------------");
+  console.log(DOMAIN.BASE, "---------------path---------------");
   console.log(path, "---------", apiRequestObject);
 
   const token = apiRequestObject.Token ?? "";
@@ -114,7 +114,6 @@ export function javascriptGet<T = any>(
   mockURL: string = ''
 ): Promise<ApiResponse<T>> {
   let path = `${DOMAIN.BASE}${apiRequestObject.path}`;
-
   if (mockURL.length > 0) {
     path = mockURL;
   }

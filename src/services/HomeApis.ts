@@ -1,55 +1,99 @@
-import { useQueries, UseQueryResult } from '@tanstack/react-query';
+import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { ENDPOINT } from '../util/constant';
-import { javascriptGet, ApiResponse } from '../util/api';
-
-/* ------------------------------------
-   Types
------------------------------------- */
-
-export interface DashboardRequestBody {
-  [key: string]: any;
-}
+import { ApiResponse, javascriptGet } from '../util/api';
 
 export type Token = string | null;
 
-interface UseDashboardDataParams {
-  token: Token;
-  body: DashboardRequestBody;
+export interface HomeDashboardSummary {
+  current_balance?: number;
+  credit_limit?: number;
+  outstanding_amount?: number;
+  available_credit?: number;
+  bill_amount?: number;
+  amount_payable?: number;
+  payment_received?: number;
+  post_bill_credit_total?: number;
+  unbilled_debit?: number;
+  bill_no?: string | number | null;
+  bill_month_year?: string | null;
+  unbilled_credit?:string | number | null;
+  pay_status?: string | null;
 }
 
-/* ------------------------------------
-   Hook
------------------------------------- */
+export interface HomeDashboardCard {
+  label: string;
+  value: number | string;
+  prefix?: string;
+  suffix?: string;
+  tone?: string;
+  helper?: string;
+}
 
-const useDashboardData = ({ token, body }: UseDashboardDataParams) => {
+export interface HomeDashboardInsight {
+  title: string;
+  value: number | string;
+  prefix?: string;
+  suffix?: string;
+  tone?: string;
+  description?: string;
+}
 
-  const results = useQueries({
-    queries: [
-      {
-        queryKey: ['card_balance', body, token],
-        queryFn: (): Promise<ApiResponse> =>
-          javascriptGet({
-            path: ENDPOINT.card_balance,
-            Token: token ?? "",
-            body,
-          }),
-        enabled: !!token, // safe guard
-      },
+export interface HomeDashboardTrend {
+  month_key: string;
+  month_label: string;
+  recharge_total: number;
+  spend_total: number;
+  activity_count: number;
+}
 
-      {
-        queryKey: ['account_summary', token],
-        queryFn: (): Promise<ApiResponse> =>
-          javascriptGet({
-            path: ENDPOINT.account_summary,
-            Token: token ?? "",
-            body: {}, // required by your API wrapper
-          }),
-        enabled: !!token,
-      },
-    ],
+export interface HomeDashboardBreakdown {
+  label: string;
+  count: number;
+  amount: number;
+}
+
+export interface HomeDashboardActivity {
+  type: 'card' | 'account';
+  title: string;
+  subtitle: string;
+  reference?: string | number;
+  amount: number;
+  date: string;
+}
+
+export interface HomeDashboardAnalytics {
+  cards?: HomeDashboardCard[];
+  highlights?: Record<string, any>;
+  insights?: HomeDashboardInsight[];
+  monthly_trend?: HomeDashboardTrend[];
+  location_breakdown?: HomeDashboardBreakdown[];
+  payment_mode_breakdown?: HomeDashboardBreakdown[];
+  recent_activity?: HomeDashboardActivity[];
+}
+
+export interface HomeDashboardData {
+  summary?: HomeDashboardSummary;
+  analytics?: HomeDashboardAnalytics;
+}
+
+interface UseDashboardDataParams {
+  token: Token;
+}
+
+const useDashboardData = ({
+  token,
+}: UseDashboardDataParams): UseQueryResult<ApiResponse<HomeDashboardData>, unknown> => {
+  return useQuery({
+    queryKey: ['home-dashboard', token],
+    queryFn: () =>
+      javascriptGet<HomeDashboardData>({
+        path: ENDPOINT.financial_home_dashboard,
+        Token: token ?? '',
+      }),
+    enabled: !!token,
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
-
-  return results as UseQueryResult<ApiResponse>[];
 };
 
 export default useDashboardData;

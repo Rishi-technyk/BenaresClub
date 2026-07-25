@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>LGCUP</string>
+	<string>LGC LKO</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -20,6 +20,26 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>juspay-$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+				<string>amzn-$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+				<string>$(PRODUCT_BUNDLE_IDENTIFIER).cred</string>
+				<string>paytm-$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>lgc</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>FirebaseAppDelegateProxyEnabled</key>
@@ -31,6 +51,35 @@
 		<string>paytm</string>
 		<string>upi</string>
 		<string>credpay</string>
+		<string>paytmmp</string>
+		<string>bhim</string>
+		<string>myairtel</string>
+		<string>slice-upi</string>
+		<string>ppe</string>
+		<string>amazonpay</string>
+		<string>kiwi</string>
+		<string>navipay</string>
+		<string>mobikwik</string>
+		<string>tatadigital</string>
+		<string>popclubapp</string>
+		<string>super</string>
+		<string>postpe</string>
+		<string>jupiter</string>
+		<string>hdfcbanknb</string>
+		<string>aunb</string>
+		<string>imobileappnb</string>
+		<string>simplypayupi</string>
+		<string>tnupi</string>
+		<string>magnetapp</string>
+		<string>lxme</string>
+		<string>indmoney</string>
+		<string>whatsapp</string>
+		<string>canaraaipe</string>
+		<string>fpupi</string>
+		<string>devtools</string>
+		<string>cugext</string>
+		<string>scapia</string>
+		<string>salaryse</string>
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
@@ -43,6 +92,10 @@
 	<string>We need camera access to scan QR codes</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Location is used to improve service accuracy.</string>
+  <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>We need your location to verify that you are inside the club premises.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>We need your location to verify that you are inside the club premises.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This App requires access to your photo library to allow you to upload and select photos.</string>
 	<key>NSUserNotificationUsageDescription</key>

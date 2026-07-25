@@ -86,11 +86,19 @@ export const loginWithOTP = createAsyncThunk<
   ENDPOINT.verify_signin_otp,
   async ({ apiRequestObject }, thunkAPI) => {
     try {
-      const response = await javascriptPost({
-        path: ENDPOINT.verify_signin_otp,
-        body: apiRequestObject.body,
-      });
+      // const response = await javascriptPost({
+      //   path: ENDPOINT.verify_signin_otp,
+      //   body: apiRequestObject.body,
+      // });
 
+         const response = apiRequestObject.body.type ==='waiter' ? await javascriptPostLocal({
+              path: ENDPOINT.waiter_login,
+              body: apiRequestObject.body,
+            }) : await javascriptPost({
+              path: ENDPOINT.verify_signin_otp,
+              body: apiRequestObject.body,
+            });
+console.log( response, '---------------------- response --sss-------------------');
       if (!response.status) {
         return thunkAPI.rejectWithValue(response.message || 'Invalid OTP');
       }

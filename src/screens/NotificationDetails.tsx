@@ -22,6 +22,7 @@ import LinearGradient from "react-native-linear-gradient";
 import { createShimmerPlaceholder } from "react-native-shimmer-placeholder";
 import { javascriptGet } from "../util/api";
 import ImageViewer from "react-native-image-zoom-viewer";
+import { useAppTheme } from "../theme/AppThemeProvider";
 
 const Shimmer = createShimmerPlaceholder(LinearGradient);
 type Props= NativeStackScreenProps<AppStackParamList,'NotificationDetailScreen'>
@@ -31,7 +32,8 @@ const [loading, setLoading] = useState(!route?.params?.data);
 const notificationId = route?.params?.data?.id || route?.params?.id;
   const [isModalVisible, setModalVisible] = useState(false);
 const data = notification;
-
+const {colors}= useAppTheme();
+  const styles = createStyles(colors);
   useEffect(() => {
   if (!notification && notificationId) {
     fetchNotification();
@@ -89,7 +91,7 @@ const fetchNotification = async () => {
     style={styles.closeButton}
     onPress={() => setModalVisible(false)}
   >
-    <Ionicons name="close-outline" size={28} color="white" />
+    <Ionicons name="close-outline" size={28} color={colors.text} />
   </TouchableOpacity>
 </Modal>
       <View style={styles.boxcontainer}>
@@ -109,13 +111,13 @@ const fetchNotification = async () => {
                 justifyContent: "space-between",
               }}>
               <View style={{ flexDirection: "row", marginBottom: 5 }}>
-                <Icon name="calendar-month" color={DARK_BLUE} size={17} />
+                <Icon name="calendar-month" color={colors.text} size={17} />
                 <Text style={styles.dateText}>
                   {moment(data?.date).format("DD MMM YYYY")}
                 </Text>
               </View>
               <View style={{ flexDirection: "row" }}>
-                <Icon name="access-time-filled" color={DARK_BLUE} size={17} />
+                <Icon name="access-time-filled" color={colors.text} size={17} />
 
                 <Text style={styles.dateText}>
                   {moment(data?.time, "HH:mm:ss").format("h:mm A")}
@@ -123,7 +125,7 @@ const fetchNotification = async () => {
               </View>
             </View>
             <View style={{ ...styles.rowView, marginTop: 15 }}>
-              <Icon name="location-pin" color={DARK_BLUE} size={17} />
+              <Icon name="location-pin" color={colors.text} size={17} />
               <View style={{ width: "80%" }}>
                 <Text style={styles.dateText}>{data?.address}</Text>
               </View>
@@ -132,14 +134,15 @@ const fetchNotification = async () => {
           <View style={styles.mainView}>
             <Text style={styles.short_descText}>Short Description</Text>
             <Text
-              style={{ marginBottom: 15, fontFamily: FONT_FAMILY.semiBold,color:'black' }}>
+              style={{ marginBottom: 15, fontFamily: FONT_FAMILY.semiBold,color: colors.text }}
+            >
               {data?.short_descriptions}
             </Text>
             <Text style={styles.descText}>Description</Text>
             <RenderHTML
               source={{ html: data?.description }}
               contentWidth={width - 60}
-              baseStyle={{ fontFamily: FONT_FAMILY.normal,color:'black' }}
+              baseStyle={{ fontFamily: FONT_FAMILY.normal,color: colors.text }}
             />
           </View>
         </ScrollView>
@@ -167,7 +170,17 @@ const DetailShimmer = () => (
     </View>
   </View>
 );
-const styles = StyleSheet.create({
+const createStyles = (colors: {
+  background: string;
+  primary: string;
+  onPrimary: string;
+  surface: string;
+  surfaceAlt: string;
+  text: string;
+  textMuted: string;
+  border: string;
+  success: string;
+}) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -188,14 +201,16 @@ const styles = StyleSheet.create({
 
     marginHorizontal: 20,
     padding: 20,
-    backgroundColor: "#FFFFFFFF",
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth:0.6,
     borderRadius: 8,
   },
   mainText: {
     fontSize: 20,
     fontWeight: "500",
     // fontFamily: 'Lato-Bold',
-    color: "#464646",
+    color: colors.text,
     marginBottom: 14,
   },
   modalContainer: {
@@ -211,12 +226,12 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 13,
     fontFamily: FONT_FAMILY.normal,
-    color: "#464646",
+    color: colors.text,
     marginLeft: 8,
     textAlign: "left",
   },
   expandButton: {
-    backgroundColor: "white",
+    backgroundColor: colors.primary,
     top: 0,
     right: 6,
     position: "absolute",
@@ -232,7 +247,9 @@ const styles = StyleSheet.create({
 
     marginTop: 15,
     marginHorizontal: 20,
-    backgroundColor: "#FFFFFFFF",
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth:0.6,
     borderRadius: 8,
     padding: 20,
   },
@@ -240,7 +257,7 @@ const styles = StyleSheet.create({
     // marginTop: 5,
     fontSize: 16,
     fontFamily: FONT_FAMILY.semiBold,
-    color: "#89919e",
+    color: colors.text,
     marginBottom: 10,
   },
   fullScreenImage: {
@@ -251,7 +268,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     fontFamily: FONT_FAMILY.semiBold,
-    color: "#89919e",
+    color: colors.text,
   },
   closeButton: {
     position: "absolute",
@@ -272,7 +289,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "300",
     // fontFamily: 'Lato-Regular',
-    color: "#464646",
+    color: colors.text,
   },
 });
 

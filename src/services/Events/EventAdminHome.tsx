@@ -224,6 +224,7 @@ const EventAdminHome = ({ navigation }) => {
       { cancelable: false },
     );
   };
+  console.log( summery?.breakup, '---------------------- summery?.breakup ---------------------');
   const ticketTypes =
     Events?.find(ev => ev.id === SelectedEvent?.id)?.ticket_types || [];
   return (
@@ -339,12 +340,8 @@ const EventAdminHome = ({ navigation }) => {
 
               <View style={styles.breakdownWrap}>
                 {summery?.breakup?.map((item, i) => {
-                  const ticket = ticketTypes.find(t => t.id === item.ticket_id);
-                  console.log(
-                    ticket,
-                    ticketTypes,
-                    '---------------------- ticket ---------------------',
-                  );
+                  const ticket = ticketTypes.find(t => t.id == item.ticket_id);
+          
                   return (
                     <View key={i} style={styles.breakdownChip}>
                       <Text style={styles.breakdownChipText}>
@@ -492,7 +489,7 @@ const EventAdminHome = ({ navigation }) => {
           </View>
         </View>
       </UniversalModal>
-           <InAppUpdate />
+        <InAppUpdate />
     </View>
   );
 };

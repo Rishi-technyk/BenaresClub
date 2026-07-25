@@ -1,522 +1,372 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useSelector } from 'react-redux';
-import { useRoute } from '@react-navigation/native';
+import React, { useCallback, useMemo } from 'react';
+import {
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import moment from 'moment';
-import Header from '../../components/Header';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Toast } from 'react-native-toast-notifications';
-import { DOMAIN } from '../../util/constant';
+import { useSelector } from 'react-redux';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+
+import Header from '../../components/Header';
+import BookingHeroCard from '../../components/booking/BookingHeroCard';
+import ActionBar from '../../components/booking/ActionBar';
+import DetailSection from '../../components/booking/DetailSection';
+import DetailGrid from '../../components/booking/DetailGrid';
+import SupportCard from '../../components/booking/SupportCard';
+import EmptyStateCard from '../../components/booking/EmptyStateCard';
+import BookingDetailSkeleton from '../../components/loaders/BookingDetailSkeleton';
+import StatusTimeline from '../../components/timeline/StatusTimeline';
+import PaymentSummaryCard from '../../components/payment/PaymentSummaryCard';
+import { useBookingDetails } from '../../hooks/useBookingDetails';
+import { usePaymentStatus } from '../../hooks/usePaymentStatus';
+import { createBookingSummaryPdf, shareBookingSummary } from '../../util/bookingDocuments';
+import { javascriptGet } from '../../util/api';
 import { AppStackParamList } from '../../navigation/AppDrawer';
 import { RootState } from '../../store/store';
+import { useAppTheme } from '../../theme/AppThemeProvider';
 
-type Props=NativeStackScreenProps<AppStackParamList,'InvoiceDetails'>
-const InvoiceDetails:React.FC<Props> = ({ route }) => {
-  const userData = useSelector((state:RootState) => state.auth);
-console.log( route, '---------------------- route ---------------------');
-  const [invoice, setInvoice] = useState(null);
-  const [roomDetails, setRoomDetails] = useState([]);
-  const [canCancel, setCanCancel] = useState(false);
-  useEffect(() => {
-    fetchInvoice();
-  }, [route.params.id]);
-  const canCancelRoom = item => {
-    const today = moment().startOf('day');
-    const checkIn = moment(invoice.checkin);
+type Props = NativeStackScreenProps<AppStackParamList, 'InvoiceDetails'>;
 
-    return (
-      today.isBefore(checkIn) &&
-      item.status === 'Active' &&
-      invoice.payment_info?.payment_status === 'Paid'
+const InvoiceDetails: React.FC<Props> = ({ route }) => {
+  const userData = useSelector((state: RootState) => state.auth);
+  const { colors } = useAppTheme();
+  const { resolveTone, buildPaymentTimeline } = usePaymentStatus();
+
+  const { data, isLoading, isError, refreshing, refresh } = useBookingDetails({
+    queryKey: 'room-booking-detail',
+    path: `member/room/transaction/details/${route.params.id}`,
+    token: userData.token,
+    transform: response => (response?.status ? response.data : null),
+  });
+
+  const handleDownload = useCallback(async () => {
+    if (!data) {
+      return;
+    }
+
+    const file = await createBookingSummaryPdf(
+      data.summary?.booking_number || data.booking_number,
+      'Room booking summary',
+      [
+        { label: 'Booking number', value: data.summary?.booking_number || data.booking_number },
+        { label: 'Member', value: data.member?.name || data.memberName },
+        { label: 'Check-in', value: data.summary?.checkin },
+        { label: 'Check-out', value: data.summary?.checkout },
+        { label: 'Total', value: `Rs. ${Number(data.summary?.total_amount || 0).toFixed(2)}` },
+      ],
     );
-  };
 
-const cancelRoom = (id) => {
-  fetch(
-    `${DOMAIN.BASE}member/room/booking/cancel/${id}`,
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${userData?.token}`,
-      },
-    }
-  )
-    .then(res => res.json())
-    .then(json => {
-      console.log(json, '--- cancel room response ---');
-
-      if (json?.status) {
-        fetchInvoice();
-        Toast.show(
-          json.message || 'Room cancelled successfully',
-          { type: 'success' }
-        );
-      } else {
-        Toast.show(
-          json.message || 'Unable to cancel room',
-          { type: 'danger' }
-        );
-      }
-    })
-    .catch(err => {
-      console.error(err);
-      Toast.show('Something went wrong', { type: 'danger' });
+    Toast.show(file?.filePath ? `Summary saved at ${file.filePath}` : 'Unable to save summary.', {
+      type: file?.filePath ? 'success' : 'danger',
     });
-};
-    
-  const fetchInvoice = () => {
-    fetch(
-      `${DOMAIN.BASE}member/room/transaction/details/${route.params.id}`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${userData?.token}`,
-        },
-      },
-    )
-      .then(res => res.json())
-      .then(json => {
-        if (json?.status) {
-          setInvoice(json.data);
-          setRoomDetails(json.data.room_details);
+  }, [data]);
 
-          const today = moment().startOf('day');
-          const checkIn = moment(json.data.checkin);
-          const checkOut = moment(json.data.checkout);
-
-          if (today.isSameOrAfter(checkIn) && today.isSameOrBefore(checkOut)) {
-            setCanCancel(true);
-          }
-        }
-      });
-  };
-
-  if (!invoice) return null;
-
-  const totalAmount = roomDetails.reduce(
-    (sum, r) => sum + Number(r.room_charge_total),
-    0,
-  );
-
-  const Info = ({color, label, value }) => (
-    <View style={styles.infoRow}>
-      <Text style={[styles.label]}>{label}</Text>
-      <Text style={[styles.value,{color:color?color:'black'}]}>{value}</Text>
-    </View>
-  );
-console.log( roomDetails, '---------------------- roomDetails ---------------------');
-  return (
-    <View style={styles.container}>
-      <Header title="Invoice Details" />
-
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* STATUS CARD */}
-        <View style={styles.card}>
-          <View style={styles.rowBetween}>
-            <Text style={styles.cardTitle}>
-              Booking #{invoice.booking_number}
-            </Text>
-
-            <View
-              style={[
-                styles.badge,
-                {
-                  backgroundColor:
-                    invoice.payment_info.payment_status === 'Paid'
-                      ? '#28A745'
-                      : '#DC3545',
-                },
-              ]}
-            >
-              <Text style={styles.badgeText}>
-                {invoice.payment_info.payment_status}
-              </Text>
-            </View>
-          </View>
-
-          <Info label="Booking Status" value={invoice.status} />
-          <Info label="Member ID" value={invoice.memberID} />
-          <Info
-            label="Booking Date"
-            value={moment(invoice.created_at).format('DD MMM YYYY')}
-          />
-          <Info
-            label="Check In"
-            value={moment(invoice.checkin).format('DD MMM YYYY')}
-          />
-          <Info
-            label="Check Out"
-            value={moment(invoice.checkout).format('DD MMM YYYY')}
-          />
-        </View>
-        <Text style={styles.sectionTitle}>Rooms</Text>
-
-        {roomDetails.map((item, index) => (
-          <View key={index} style={styles.roomCard}>
-            <View style={styles.roomHeader}>
-              <Text style={styles.roomTitle}>{item.room_name}</Text>
-
-              <View style={styles.statusPill(item.status)}>
-                <Text style={styles.statusText}>{item.status}</Text>
-              </View>
-            </View>
-
-            <View style={styles.infoColumn}>
-              <Ionicons name="person-outline" size={18} color="#1d4184ff" />
-              <Text style={styles.infoText}>
-                Booked For:{' '}
-                <Text style={styles.infoValue}>{item.occupant_name}</Text>
-              </Text>
-            </View>
-
-            <View style={styles.infoColumn}>
-              <Ionicons name="people-outline" size={18} color="#1d4184ff" />
-              <Text style={styles.infoText}>
-                Guests:{' '}
-                <Text style={styles.infoValue}>
-                  {item.adult} Adult / {item.child} Child
-                </Text>
-              </Text>
-            </View>
-
-            <View style={styles.infoColumn}>
-              <Ionicons name="bed-outline" size={18} color="#1d4184ff" />
-              <Text style={styles.infoText}>
-                Rooms × Nights:{' '}
-                <Text style={styles.infoValue}>
-                  {item.no_of_rooms} × {item.no_of_days}
-                </Text>
-              </Text>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>Price / Night</Text>
-              <Text style={styles.priceValue}>
-                ₹ {Number(item.room_charges)}
-              </Text>
-            </View>
-
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>GST ({item.gst_per}%)</Text>
-              <Text style={styles.priceValue}>₹ {Number(item.gst_amount)}</Text>
-            </View>
-
-            <View style={styles.priceRowTotal}>
-              <Text style={styles.totalLabel}>Room Total</Text>
-              <Text style={styles.totalValue}>
-                ₹ {Number(item.room_charge_total)}
-              </Text>
-            </View>
-            {/* TOTAL */}
-
-
-{/* ✅ CANCEL BUTTON */}
-{canCancelRoom(item) && (
-  <TouchableOpacity
-    style={styles.cancelBtn}
-    onPress={() =>
-      Alert.alert(
-        'Cancel Room',
-        'Are you sure you want to cancel this room?',
-        [
-          { text: 'No', style: 'cancel' },
-          {
-            text: 'Yes',
-            style: 'destructive',
-            onPress: () => cancelRoom(item.id),
-          },
-        ],
-      )
+  const handleShare = useCallback(async () => {
+    if (!data) {
+      return;
     }
-  >
-    <Ionicons name="trash-outline" size={18} color="#FFF" />
-    <Text style={styles.cancelText}>Cancel Room</Text>
-  </TouchableOpacity>
-)}
 
-{/* 🔴 CANCELLATION SUMMARY */}
-{item.status === 'Cancelled' && (
-  <View style={styles.cancelSummary}>
-    <Text style={styles.cancelTitle}>Cancellation Summary</Text>
+    await shareBookingSummary(
+      data.summary?.booking_number || data.booking_number,
+      'Room booking summary',
+      [
+        { label: 'Booking number', value: data.summary?.booking_number || data.booking_number },
+        { label: 'Stay', value: `${data.summary?.checkin} to ${data.summary?.checkout}` },
+        { label: 'Status', value: data.summary?.status || data.status },
+        { label: 'Payment', value: data.payment?.status || data.payment_info?.payment_status },
+      ],
+    );
+  }, [data]);
 
-    <Info
-      label={`Cancellation (${item.cancellation_per}%)`}
-      value={`₹ ${item.cancellation_amt}`}
-    />
-    <Info
-      label="GST on Cancellation"
-      value={`₹ ${item.cancellation_GST_amt}`}
-    />
-    <Info
-    color='#DC3545'
-      label="Total Deduction"
-      value={`₹ ${item.cancellation_deducation}`}
-    />
+  const cancelRoom = useCallback(
+    async (roomId: number | string) => {
+      const response = await javascriptGet({
+        path: `member/room/booking/cancel/${roomId}`,
+        Token: userData.token,
+      });
 
-    <View style={styles.divider} />
+      Toast.show(response?.message || 'Room updated.', {
+        type: response?.status ? 'success' : 'danger',
+      });
+      await refresh();
+    },
+    [refresh, userData.token],
+  );
 
-    <Info
-    color='#28A745'
-      label="Refund Amount"
-      value={`₹ ${
-        Number(item.room_charge_total) -
-        Number(item.cancellation_deducation || 0)
-      }`}
-    />
+  const tone = resolveTone(data?.summary?.status || data?.status);
+  const paymentTimeline = buildPaymentTimeline(data?.payment);
 
-    <Text style={styles.cancelDate}>
-      Cancelled on{' '}
-      {moment(item.cancellation_date).format(
-        'DD MMM YYYY, hh:mm A',
-      )}
-    </Text>
-  </View>
-)}
+  const actionItems = useMemo(
+    () => [
+      { label: 'Download', icon: 'file-download-outline', onPress: handleDownload },
+      { label: 'Share', icon: 'share-variant-outline', onPress: handleShare },
+    ],
+    [handleDownload, handleShare],
+  );
 
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <Header title="Room Booking" />
+        <BookingDetailSkeleton />
+      </View>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <Header title="Room Booking" />
+        <EmptyStateCard
+          type="error"
+          title="Room booking unavailable"
+          description="We could not load the room booking details right now. Pull to refresh and try again."
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <Header title="Room Booking" />
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+      >
+        <BookingHeroCard
+          eyebrow="Stay Reservation"
+          title={data.summary?.booking_number || data.booking_number}
+          subtitle={`${data.member?.name || data.memberName} • ${data.summary?.night_count || 0} night stay`}
+          status={data.summary?.status || data.status}
+          statusTone={tone.color === colors.success ? 'success' : tone.color === colors.danger ? 'danger' : 'warning'}
+          meta={[
+            { label: 'Rooms', value: String(data.summary?.room_count || 0), tone: 'neutral' },
+            { label: 'Guests', value: String(data.summary?.guest_count || 0), tone: 'neutral' },
+            {
+              label: 'Payment',
+              value: data.payment?.status || data.payment_info?.payment_status || 'Not Paid',
+              tone:
+                String(data.payment?.status || data.payment_info?.payment_status).toLowerCase() === 'paid'
+                  ? 'success'
+                  : 'warning',
+            },
+          ]}
+        />
+
+        <ActionBar actions={actionItems} />
+
+        <DetailSection title="Booking Snapshot" subtitle="Quick stay summary and member details." delay={40}>
+          <DetailGrid
+            items={[
+              { label: 'Member', value: data.member?.name || data.memberName, highlight: true },
+              { label: 'Member ID', value: data.member?.member_id || data.memberID },
+              { label: 'SC ID', value: data.member?.sc_id || data.chartID },
+              { label: 'Check-in', value: data.summary?.checkin },
+              { label: 'Check-out', value: data.summary?.checkout },
+              { label: 'Booked on', value: data.summary?.booked_on },
+            ]}
+          />
+        </DetailSection>
+
+        <DetailSection title="Room Breakdown" subtitle="Each reserved room, occupancy mix, and cancellation state." delay={70}>
+          {data.room_details?.map((item: any) => {
+            const roomTone = resolveTone(item.status);
+            const canCancel =
+              moment().startOf('day').isBefore(moment(data.checkin)) &&
+              item.status === 'Active' &&
+              String(data.payment?.status || data.payment_info?.payment_status).toLowerCase() === 'paid';
+
+            return (
+              <View
+                key={item.id}
+                style={[
+                  styles.roomCard,
+                  {
+                    backgroundColor: colors.surfaceAlt,
+                    borderColor: roomTone.border,
+                  },
+                ]}
+              >
+                <View style={styles.roomHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.roomTitle, { color: colors.text }]}>{item.room_name}</Text>
+                    <Text style={[styles.roomSub, { color: colors.textMuted }]}>
+                      {item.occupant_name} • {item.no_of_rooms} room(s) × {item.no_of_days} night(s)
+                    </Text>
+                  </View>
+                  <View style={[styles.statusChip, { backgroundColor: roomTone.background }]}>
+                    <Text style={[styles.statusText, { color: roomTone.color }]}>{item.status}</Text>
+                  </View>
+                </View>
+
+                <DetailGrid
+                  items={[
+                    { label: 'Adults', value: item.adult },
+                    { label: 'Children', value: item.child },
+                    { label: 'Room rate', value: `Rs. ${Number(item.room_charges).toFixed(2)}` },
+                    { label: 'GST', value: `Rs. ${Number(item.gst_amount).toFixed(2)}` },
+                    { label: 'Room total', value: `Rs. ${Number(item.room_charge_total).toFixed(2)}`, highlight: true },
+                    { label: 'Guest contact', value: item.guest_mobile || 'N/A' },
+                  ]}
+                />
+
+                {item.status === 'Cancelled' ? (
+                  <View style={[styles.cancelBox, { borderColor: colors.danger, backgroundColor: `${colors.danger}10` }]}>
+                    <Text style={[styles.cancelTitle, { color: colors.danger }]}>Cancellation Summary</Text>
+                    <Text style={[styles.cancelText, { color: colors.text }]}>
+                      Deduction: Rs. {Number(item.cancellation_deducation || 0).toFixed(2)}
+                    </Text>
+                    <Text style={[styles.cancelText, { color: colors.text }]}>
+                      Refund: Rs. {(Number(item.room_charge_total) - Number(item.cancellation_deducation || 0)).toFixed(2)}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {canCancel ? (
+                  <TouchableOpacity
+                    style={[styles.cancelButton, { backgroundColor: colors.danger }]}
+                    onPress={() =>
+                      Alert.alert('Cancel room', 'Are you sure you want to cancel this room?', [
+                        { text: 'No', style: 'cancel' },
+                        { text: 'Yes', style: 'destructive', onPress: () => cancelRoom(item.id) },
+                      ])
+                    }
+                  >
+                    <Icon name="close-circle-outline" size={16} color={colors.onPrimary} />
+                    <Text style={[styles.cancelButtonText, { color: colors.onPrimary }]}>Cancel room</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            );
+          })}
+        </DetailSection>
+
+        <DetailSection title="Payment and Invoice" subtitle="Transaction references and billing totals." delay={100}>
+          <PaymentSummaryCard
+            status={data.payment?.status || data.payment_info?.payment_status}
+            items={[
+              { label: 'Subtotal', value: `Rs. ${Number(data.invoice?.subtotal || 0).toFixed(2)}` },
+              { label: 'GST', value: `Rs. ${Number(data.invoice?.gst_total || 0).toFixed(2)}` },
+              { label: 'Grand total', value: `Rs. ${Number(data.invoice?.total || 0).toFixed(2)}`, emphasize: true },
+              { label: 'Reference', value: data.payment?.reference_number || data.payment_info?.bank_refrance_no || 'Pending' },
+              { label: 'Gateway', value: data.payment?.gateway_name || 'Club gateway' },
+            ]}
+          />
+        </DetailSection>
+
+        <DetailSection title="Booking Timeline" subtitle="Operational updates for the stay reservation." delay={130}>
+          <StatusTimeline items={data.timeline || []} />
+        </DetailSection>
+
+        {paymentTimeline.length ? (
+          <DetailSection title="Payment Timeline" subtitle="Financial checkpoints for the reservation." delay={160}>
+            <StatusTimeline items={paymentTimeline} />
+          </DetailSection>
+        ) : null}
+
+        <DetailSection title="Rules and Support" subtitle="Important stay information and help desk details." delay={190}>
+          <View style={styles.ruleList}>
+            {data.rules?.map((rule: string, index: number) => (
+              <View key={`${rule}-${index}`} style={styles.ruleRow}>
+                <Icon name="information-outline" size={18} color={colors.secondary} />
+                <Text style={[styles.ruleText, { color: colors.text }]}>{rule}</Text>
+              </View>
+            ))}
           </View>
-        ))}
-        <View style={styles.totalCard}>
-          <Text style={styles.totalLabel}>Grand Total</Text>
-          <Text style={styles.totalValue}>₹ {totalAmount.toFixed(2)}</Text>
-        </View>
+          <View style={{ marginTop: 14 }}>
+            <SupportCard
+              contactName={data.support?.name}
+              phone={data.support?.phone}
+              email={data.support?.email}
+              note={data.support?.note}
+            />
+          </View>
+        </DetailSection>
       </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F7FA' },
-  roomCard: {
-    backgroundColor: '#FFF',
-    marginHorizontal: 16,
-    marginVertical: 10,
-    padding: 16,
-    borderRadius: 14,
-    elevation: 2,
+  content: {
+    paddingBottom: 32,
   },
-
+  roomCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 12,
+  },
   roomHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
   },
-
   roomTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1d4184ff',
-    width: '70%',
-  },
-
-  statusPill: status => ({
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    backgroundColor:
-      status === 'Active'
-        ? '#28A745'
-        : status === 'Pending'
-        ? '#FFC107'
-        : '#DC3545',
-  }),
-
-  statusText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-
-  infoColumn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 6,
-  },
-
-  infoText: {
-    marginLeft: 8,
-    fontSize: 13,
-    color: '#555',
-  },
-
-  infoValue: {
-    fontWeight: '600',
-    color: '#000',
-  },
-
-  divider: {
-    height: 1,
-    backgroundColor: '#EEE',
-    marginVertical: 12,
-  },
-
-  priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 4,
-  },
-
-  priceRowTotal: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-
-  priceLabel: {
-    fontSize: 13,
-    color: '#666',
-  },
-
-  priceValue: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#333',
-  },
-
-  totalLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-
-  totalValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1d4184ff',
-  },
-
-  card: {
-    backgroundColor: '#FFF',
-    margin: 16,
-    padding: 16,
-    borderRadius: 14,
-    elevation: 2,
-  },
-
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1d4184ff',
-  },
-
-  roomName: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#333',
-  },
-
-  sectionTitle: {
-    marginHorizontal: 16,
-    marginTop: 10,
-    fontSize: 16,
     fontWeight: '700',
   },
-
-  rowBetween: {
+  roomSub: {
+    marginTop: 4,
+    fontSize: 12,
+  },
+  statusChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  cancelBox: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 12,
+    marginTop: 10,
+  },
+  cancelTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  cancelText: {
+    marginTop: 6,
+    fontSize: 12,
+  },
+  cancelButton: {
+    marginTop: 12,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignSelf: 'flex-start',
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
-
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 6,
-  },
-
-  label: {
+  cancelButtonText: {
+    marginLeft: 6,
     fontSize: 13,
-    color: '#666',
+    fontWeight: '700',
   },
-
-  value: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#333',
+  ruleList: {
+    gap: 10,
   },
-
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-
-  badgeText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-
-  totalCard: {
-    margin: 16,
-    padding: 16,
-    backgroundColor: '#FFF',
-    borderRadius: 14,
+  ruleRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
-
-  cancelBox: {
-    marginTop: 10,
-    backgroundColor: '#FFF5F5',
-    padding: 10,
-    borderRadius: 8,
+  ruleText: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 13,
+    lineHeight: 19,
   },
-  statusBadge: status => ({
-    alignSelf: 'flex-start',
-    marginTop: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor:
-      status === 'Active'
-        ? '#28A745'
-        : status === 'Pending'
-        ? '#FFC107'
-        : '#DC3545',
-  }),
-  cancelBtn: {
-  marginTop: 12,
-  backgroundColor: '#DC3545',
-  paddingVertical: 10,
-  borderRadius: 8,
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-
-cancelText: {
-  color: '#FFF',
-  fontWeight: '700',
-  marginLeft: 8,
-},
-
-cancelSummary: {
-  marginTop: 14,
-  padding: 12,
-  borderRadius: 10,
-  backgroundColor: '#FFF5F5',
-  borderWidth: 1,
-  borderColor: '#F5C2C7',
-},
-
-cancelTitle: {
-  fontSize: 14,
-  fontWeight: '700',
-  marginBottom: 8,
-  color: '#DC3545',
-},
-
-cancelDate: {
-  marginTop: 6,
-  fontSize: 12,
-  color: '#666',
-  textAlign: 'right',
-},
-
 });
 
 export default InvoiceDetails;

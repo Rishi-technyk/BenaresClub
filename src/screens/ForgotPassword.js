@@ -1,15 +1,18 @@
-import { StyleSheet, Text, TextInput, View } from 'react-native'
+import { StyleSheet, Text, TextInput } from 'react-native'
 import React, { useState } from 'react'
-import AuthScreenLayout from '../components/AuthScreenLayout';
+import AuthScreenLayout from '../components/AuthScreenLayout.tsx';
 import Button2 from '../components/Button2.tsx';
-import { Loginstyles } from '../Styles/LoginStyles';
-import { ENDPOINT } from '../util/constant';
-import { javascriptPost } from '../util/api';
+import { Loginstyles } from '../Styles/LoginStyles.tsx';
+import { ENDPOINT } from '../util/constant.ts';
+import { javascriptPost } from '../util/api.tsx';
 import { Toast } from 'react-native-toast-notifications';
+import { useAppTheme } from '../theme/AppThemeProvider.tsx';
 const ForgotPassword = ({navigation}) => {
 
   const [usernameTextValue, setUsernameTextValue] = useState("");
-    const [loadingData, setLoadingData] = useState(false);
+  const [loadingData, setLoadingData] = useState(false);
+  const { colors } = useAppTheme();
+  const styles = createStyles(colors);
   const forgotPasswordHandler = async () => {
     Toast.hideAll()
     // navigation.navigate('VerifyForgotPassOTPScreen', { memberID: usernameTextValue })
@@ -53,15 +56,15 @@ const ForgotPassword = ({navigation}) => {
   };
   return (
    <AuthScreenLayout title={'Forgot Password'}>
-      <Text style={Loginstyles.inputLabel}>Member ID</Text>
+      <Text style={[Loginstyles.inputLabel, styles.label]}>Member ID</Text>
         <TextInput
-        style={Loginstyles.input}
-        placeholderTextColor={'grey'}
+        style={[Loginstyles.input, styles.input]}
+        placeholderTextColor={colors.placeholder}
 
       onDone={forgotPasswordHandler}
         maxLength={10}
         keyboardType="email-address"
-        placeholder="Enter your Member ID (001A)"
+        placeholder="Enter your Member ID (A0000)"
        onSubmitEditing={forgotPasswordHandler}
         onChangeText={setUsernameTextValue}
       />
@@ -76,4 +79,14 @@ const ForgotPassword = ({navigation}) => {
 
 
 export default ForgotPassword
-const styles = StyleSheet.create({})
+const createStyles = colors =>
+  StyleSheet.create({
+    label: {
+      color: colors.textMuted,
+    },
+    input: {
+      borderBottomColor: colors.border,
+      backgroundColor: colors.surface,
+      color: colors.text,
+    },
+  })

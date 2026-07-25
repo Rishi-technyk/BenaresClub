@@ -3,37 +3,28 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Dimensions,
   StyleSheet,
   Alert,
   TextInput,
-  Platform,
 } from 'react-native';
-import {SigninWithOTPScreenService} from '../services/SigninWithOTPScreenService'
-import messaging, {
-  AuthorizationStatus,
-} from '@react-native-firebase/messaging';
-import _ from 'lodash';
-import { useDispatch, useSelector } from 'react-redux';
-import AuthScreenLayout from '../components/AuthScreenLayout';
+import {SigninWithOTPScreenService} from '../services/SigninWithOTPScreenService.ts'
+import AuthScreenLayout from '../components/AuthScreenLayout.tsx';
 import { Toast } from 'react-native-toast-notifications';
-import { Loginstyles } from '../Styles/LoginStyles';
+import { Loginstyles } from '../Styles/LoginStyles.tsx';
 import Button2 from '../components/Button2.tsx';
-import { DARK_BLUE, FONT_FAMILY } from '../util/colors';
-import { javascriptPost } from '../util/api';
-import { ENDPOINT } from '../util/constant';
-import { loginWithOTP } from '../store/slices/authSlice.js';
-import DeviceInfo from "react-native-device-info";
+import { FONT_FAMILY } from '../util/colors.tsx';
+import { javascriptPost } from '../util/api.tsx';
+import { ENDPOINT } from '../util/constant.ts';
+import { useAppTheme } from '../theme/AppThemeProvider.tsx';
 const VerifyForgotPasswordOTPScreen = ({ route, navigation }) => {
   const [usernameTextValue, setUsernameTextValue] = useState('');
     const [passwordValue, setPasswordValue] = useState('');
   const [loadingData, setLoadingData] = useState(false);
-  const dispatch = useDispatch();
   const userType = route?.params?.type;
-  const data = useSelector(state => state.auth);
-  const { width, height } = Dimensions.get('window');
-  const [canResend, setCanResend] = useState(false);
+  const [, setCanResend] = useState(false);
   const [timeLeft, setTimeLeft] = useState(300);
+  const { colors } = useAppTheme();
+  const styles = createStyles(colors);
 
   const formatTime = secs => {
     const minutes = Math.floor(secs / 60);
@@ -73,7 +64,7 @@ const VerifyForgotPasswordOTPScreen = ({ route, navigation }) => {
 
         const response = await javascriptPost(apiRequestObject);
         console.log(response)
-      if (response.status==true) {
+      if (response.status === true) {
         setLoadingData(false);
         Toast.show(
           response.message,
@@ -131,16 +122,10 @@ const VerifyForgotPasswordOTPScreen = ({ route, navigation }) => {
   return (
     <AuthScreenLayout  title={'Verify OTP'}>
         <View style={{margin:8}}>
-          <Text style={Loginstyles.versionText}>
+          <Text style={[Loginstyles.versionText, styles.helperText]}>
             Please Enter The Valid OTP For{' '}
             {userType === 'waiter' ? 'User Name' : 'Member ID'}:{' '}
-            <Text
-              style={{
-                color: 'black',
-                fontSize: 15,
-                fontFamily: FONT_FAMILY.bold,
-              }}
-            >
+            <Text style={styles.memberText}>
               {route.params?.memberID}
             </Text>
           </Text>
@@ -148,14 +133,14 @@ const VerifyForgotPasswordOTPScreen = ({ route, navigation }) => {
 
         <TextInput
         // ref={userRef}
-        placeholderTextColor={'grey'}
+        placeholderTextColor={colors.placeholder}
 
         maxLength={6}
         keyboardType="email-address"
         placeholder="Enter Your OTP"
         value={usernameTextValue}
         onChangeText={setUsernameTextValue}
-        style={Loginstyles.input}
+        style={[Loginstyles.input, styles.input]}
         autoCapitalize="none"
         returnKeyType="next"
        
@@ -163,12 +148,12 @@ const VerifyForgotPasswordOTPScreen = ({ route, navigation }) => {
       />
         <TextInput
         // ref={userRef}
-           placeholderTextColor={'grey'}
+           placeholderTextColor={colors.placeholder}
         keyboardType="email-address"
         placeholder="Enter Password"
         value={passwordValue}
         onChangeText={setPasswordValue}
-        style={Loginstyles.input}
+        style={[Loginstyles.input, styles.input]}
         autoCapitalize="none"
         returnKeyType="next"
         onSubmitEditing={VerifySignInOTP}
@@ -192,14 +177,28 @@ const VerifyForgotPasswordOTPScreen = ({ route, navigation }) => {
   );
 };
 export default VerifyForgotPasswordOTPScreen;
-const styles = StyleSheet.create({
-  resendText: { fontFamily: FONT_FAMILY.bold, color: DARK_BLUE },
-  timerText: {
-    fontFamily: FONT_FAMILY.bold,
-    color: DARK_BLUE,
-    alignSelf: 'flex-end',
-  },
-  resendButton: { alignSelf: 'flex-end' },
-});
+const createStyles = colors =>
+  StyleSheet.create({
+    resendText: { fontFamily: FONT_FAMILY.bold, color: colors.primary },
+    timerText: {
+      fontFamily: FONT_FAMILY.bold,
+      color: colors.primary,
+      alignSelf: 'flex-end',
+    },
+    resendButton: { alignSelf: 'flex-end' },
+    helperText: {
+      color: colors.textMuted,
+    },
+    memberText: {
+      color: colors.text,
+      fontSize: 15,
+      fontFamily: FONT_FAMILY.bold,
+    },
+    input: {
+      borderBottomColor: colors.border,
+      backgroundColor: colors.surface,
+      color: colors.text,
+    },
+  });
 
 

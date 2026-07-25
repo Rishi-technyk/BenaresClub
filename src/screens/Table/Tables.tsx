@@ -19,20 +19,23 @@ import Header from '../../components/Header';
 import CalendarStrip from '../../components/CalendarStrip';
 import { Toast } from 'react-native-toast-notifications';
 import { FONT_FAMILY, LIGHT_GREEN, LIGHT_RED, SECONDARY_COLOR } from '../../util/colors';
+import { useAppTheme } from '../../theme/AppThemeProvider';
+import { create } from 'react-native/types_generated/Libraries/ReactNative/ReactFabricPublicInstance/ReactNativeAttributePayload';
 
 const ShimmerPlaceholder = createShimmerPlaceholder(LinearGradient);
 
 const Tables = ({navigation}) => {
   const userData = useSelector((state: RootState) => state.auth);
 
-  const today = moment().add(1,'days').format('YYYY-MM-DD');
-
+  const {colors}=useAppTheme();
+  const today = moment().format('YYYY-MM-DD');
+const styles=createStyles(colors);
   const [selectedDate, setSelectedDate] = useState(today);
   const [selectedMeal, setSelectedMeal] = useState<any>(null);
   const [selectedTime, setSelectedTime] = useState<any>(null);
   const [selectedVenue, setSelectedVenue] = useState<any>(null);
   const [selectedTable, setSelectedTable] = useState<any>(null);
-
+  const [message, setMessage] = useState('');
 const [hasChecked, setHasChecked] = useState(false);
   /* ==========================
      SINGLE API CALL
@@ -50,12 +53,14 @@ const { data, isLoading, refetch, isFetching } = useQuery({
       path: url,
       Token: userData.token,
     });
-    if(res.status ==true){
-
-      return res.data;
-    }else{
-      Toast.show(res.message,{type:'danger'})
-    }
+ if(res.status == true){
+  setMessage('');
+  return res.data;
+}else{
+  setMessage(res.message); // ✅ store message
+  // Toast.show(res.message,{type:'danger'})
+  return res.data || {};
+}
   },
   enabled: true,
 });
@@ -69,7 +74,9 @@ const { data: bookingData, isLoading: bookingLoading, refetch: refetchBookings }
       Token: userData.token,
     });
     if (!res.status) {
+           setMessage( res.message || 'Failed to fetch bookings')
       return {
+   
         data:[]
       };
     }
@@ -77,8 +84,37 @@ const { data: bookingData, isLoading: bookingLoading, refetch: refetchBookings }
     return res.data;
   },
 });
-console.log( bookingData, '---------------------- bookingData ---------------------');
-
+const ShimmerList = () => (
+  <View style={{  flex: 1, }}>
+    {[1, 2, 3, 4].map(i => (
+      <View style={styles.card} key={i}>
+        <View style={{flexDirection:'row',justifyContent:'space-between'}}>
+      <ShimmerPlaceholder
+        key={i}
+        height={30}
+        style={{ marginBottom: 20, borderRadius: 10 }}
+      />
+      <ShimmerPlaceholder
+        key={i}
+        height={30}
+        width={60}
+        style={{ marginBottom: 20, borderRadius: 10 }}
+      />
+          </View>
+      <ShimmerPlaceholder
+        key={i}
+        height={20}
+        style={{ marginBottom: 20, borderRadius: 10 }}
+      />
+      <ShimmerPlaceholder
+        key={i}
+        height={20}
+        style={{ marginBottom: 20, borderRadius: 10 }}
+      />
+    </View>
+    ))}
+  </View>
+);
   /* ==========================
      FILTERING LOGIC
   ========================== */
@@ -103,11 +139,17 @@ React.useEffect(() => {
   const venues =  data?.venues || [];
 
 
+const times = useMemo(() => {
+  if (!selectedMeal) return [];
 
-    const times = useMemo(() => {
-    if (!selectedMeal) return [];
-    return meals.find((m: any) => m.id === selectedMeal)?.times || [];
-  }, [selectedMeal, meals]);
+  return meals
+    .find((m: any) => m.id === selectedMeal)
+    ?.times?.filter((t: any) => {
+      if (selectedDate !== today) return true;
+
+      return moment(t.end_time, 'HH:mm:ss').isAfter(moment());
+    }) || [];
+}, [selectedMeal, meals, selectedDate]);
 
 
 const tables = hasChecked ? data?.tables || [] : [];
@@ -176,6 +218,7 @@ const renderTableItem = ({ item }: { item: any }) => {
     </TouchableOpacity>
   );
 };
+
 const bookMutation = useMutation({
   mutationFn: async () => {
     const res = await javascriptPost({
@@ -189,7 +232,7 @@ const bookMutation = useMutation({
       },
       Token: userData.token,
     });
-console.log( res, '---------------------- res ---------------------');
+
 
     // 🔥 IMPORTANT: throw error if API says false
     if (!res.status) {
@@ -207,9 +250,10 @@ console.log( res, '---------------------- res ---------------------');
     Toast.show(error.message || 'Booking Failed', { type: 'danger' });
   },
 });
-  const isValid =
-    selectedMeal && selectedTime && selectedVenue ;
+const isTimeExpired = message === 'This time slot has already passed';
 
+const isValid =
+  selectedMeal && selectedTime && selectedVenue && !isTimeExpired;
   /* ==========================
      SHIMMER
   ========================== */
@@ -217,15 +261,21 @@ console.log( res, '---------------------- res ---------------------');
   return (
     <View style={{ flex: 1 }}>
       <Header title="Book Table" />
-      <ScrollView stickyHeaderIndices={[5]}>
+
+      <ScrollView stickyHeaderIndices={[1]}>
+        <View>
         <CalendarStrip
-          dayOpenBooking={data?.length || 3}
+          dayOpenBooking={data?.days_Open_booking || 3}
           selectedDate={selectedDate}
           onSelectDate={setSelectedDate}
         />
 
  <Dropdown
           style={styles.dropdown}
+              placeholderStyle={{ color: colors.text }}
+     selectedTextStyle={{ color: colors.text }}
+  
+     activeColor={colors.primary}
           data={venues}
           labelField="name"
           valueField="id"
@@ -237,6 +287,10 @@ console.log( res, '---------------------- res ---------------------');
         <Dropdown
           style={styles.dropdown}
           data={meals}
+              placeholderStyle={{ color: colors.text }}
+     selectedTextStyle={{ color: colors.text }}
+   
+     activeColor={colors.primary}
           labelField="name"
           valueField="id"
           placeholder="Select Meal"
@@ -248,6 +302,10 @@ console.log( res, '---------------------- res ---------------------');
 
         <Dropdown
           style={styles.dropdown}
+       placeholderStyle={{ color: colors.text }}
+     selectedTextStyle={{ color: colors.text }}
+  
+     activeColor={colors.primary}
           data={times}
           labelField="time"
           valueField="id"
@@ -255,10 +313,23 @@ console.log( res, '---------------------- res ---------------------');
           value={selectedTime}
           onChange={item => setSelectedTime(item.id)}
         />
-
+{message ? (
+  <Text style={{ 
+    color: 'red', 
+    textAlign: 'center', 
+    marginTop: 10,
+    fontWeight: '600'
+  }}>
+    {message}
+  </Text>
+) : null}
     {tables.length > 0 && (
   <Dropdown
     style={styles.dropdown}
+     placeholderStyle={{ color: colors.text }}
+     selectedTextStyle={{ color: colors.text }}
+   
+     activeColor={colors.primary}
     data={tables}
     labelField="name"
     valueField="id"
@@ -299,24 +370,26 @@ setTimeout(() => {
           {bookMutation.isPending ? (
             <ActivityIndicator color="white" />
           ) : (
-        <Text style={{ color: 'white', fontWeight: 'bold' }}>
+   <Text style={{ color: 'white', fontWeight: 'bold' }}>
   {isFetching
     ? 'Checking...'
-    : !hasChecked
-      ? 'Check Availability'
-      : tables.length > 0
-        ? selectedTable
-          ? 'Confirm Booking'
-          : 'Select Table'
-        : 'No Tables Available'}
+    : isTimeExpired
+      ? 'Time Slot Expired'
+      : !hasChecked
+        ? 'Check Availability'
+        : tables.length > 0
+          ? selectedTable
+            ? 'Confirm Booking'
+            : 'Select Table'
+          : 'No Tables Available'}
 </Text>
           )}
         </TouchableOpacity>
-
+</View>
       {!bookingLoading &&
-      <View style={{backgroundColor:'white',padding:20,}}>
+      <View style={{backgroundColor:colors.surface,padding:20,}}>
 
-      <Text style={{ fontWeight: 'bold', fontSize: 16 }}>
+      <Text style={{ fontWeight: 'bold', fontSize: 16,color: colors.text }}>
   Upcoming Bookings
 </Text>
       </View>
@@ -337,49 +410,19 @@ setTimeout(() => {
 };
 
 export default Tables;
-const ShimmerList = () => (
-  <View style={{  flex: 1, }}>
-    {[1, 2, 3, 4].map(i => (
-      <View style={styles.card} key={i}>
-        <View style={{flexDirection:'row',justifyContent:'space-between'}}>
-      <ShimmerPlaceholder
-        key={i}
-        height={30}
-        style={{ marginBottom: 20, borderRadius: 10 }}
-      />
-      <ShimmerPlaceholder
-        key={i}
-        height={30}
-        width={60}
-        style={{ marginBottom: 20, borderRadius: 10 }}
-      />
-          </View>
-      <ShimmerPlaceholder
-        key={i}
-        height={20}
-        style={{ marginBottom: 20, borderRadius: 10 }}
-      />
-      <ShimmerPlaceholder
-        key={i}
-        height={20}
-        style={{ marginBottom: 20, borderRadius: 10 }}
-      />
-    </View>
-    ))}
-  </View>
-);
 
 
-const styles = StyleSheet.create({
+
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
   },
   dropdown: {
     marginHorizontal: 15,
     marginTop: 15,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: colors.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 50,
@@ -388,7 +431,7 @@ const styles = StyleSheet.create({
     margin: 15,
     padding: 15,
     borderRadius: 10,
-    backgroundColor: '#f39c12',
+    backgroundColor: colors.surface,
     alignItems: 'center',
   },
   bookBtn: {
@@ -398,7 +441,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   btnText: {
-    color: 'white',
+    color: colors.primary,
     fontWeight: 'bold',
     fontSize: 16,
   },
@@ -416,7 +459,7 @@ const styles = StyleSheet.create({
     value: {
         fontSize: 13,
         fontFamily: FONT_FAMILY.semiBold,
-        color: '#333',
+        color: colors.text,
       },
     
       badge: {
@@ -440,7 +483,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginTop: 40,
         fontFamily: FONT_FAMILY.normal,
-        color: '#999',
+        color: colors.text,
         fontSize: 15,
       },
       ctaRow: {
@@ -450,7 +493,7 @@ const styles = StyleSheet.create({
       cardTitle: {
     fontSize: 15,
     fontFamily: FONT_FAMILY.bold,
-    color: '#1d4184ff',
+    color: colors.text,
     maxWidth: '70%',
   },
 
@@ -460,7 +503,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   card: {
-    backgroundColor: '#FFF',
+    backgroundColor: colors.surface,
     marginHorizontal: 16,
     marginVertical: 8,
     padding: 16,

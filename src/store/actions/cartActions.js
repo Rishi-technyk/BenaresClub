@@ -19,9 +19,9 @@ export const updateCartItem = (memberId, itemCode, updates) => ({
   type: "UPDATE_CART_ITEM",
   payload: { memberId, itemCode, updates },
 });
-export const addRemark = (remark, itemCode, memberId) => ({
+export const addRemark = (remark, itemCode, memberId,cartKey) => ({
   type: "ADD_REMARK",
-  payload: { remark, itemCode, memberId },
+  payload: { remark, itemCode, memberId,cartKey },
 });
 
 export const removeRemark = (remark, itemCode, memberId) => ({

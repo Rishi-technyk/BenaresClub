@@ -21,12 +21,7 @@ export const ModalStyles = StyleSheet.create({
     justifyContent: "space-between",backgroundColor:'white',marginBottom:20
   },
   innerModalCont: {
-    flex: 0.5,
-    backgroundColor: "white",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 10,
-    // borderRadius: 10,
+  
   },
   listRow: { flexDirection: "row", margin: 20 },
   downloadText: {

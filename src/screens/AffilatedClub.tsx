@@ -1,453 +1,570 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
-  Image,
-  Modal,
+  FlatList,
+  Linking,
+  Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
-  TouchableOpacity,
+  TextInput,
   View,
 } from 'react-native';
-import React, {useEffect, useState} from 'react';
-import {FlatList, TextInput} from 'react-native-gesture-handler';
-import { DARK_BLUE, FONT_FAMILY, SECONDARY_COLOR } from '../util/colors';
-import Icon from "react-native-vector-icons/MaterialIcons";
-import MaterialIcons from "react-native-vector-icons/MaterialIcons";
-
-import Icons from "react-native-vector-icons/Entypo";
-import {createShimmerPlaceholder} from 'react-native-shimmer-placeholder';
 import LinearGradient from 'react-native-linear-gradient';
-import * as api from '../util/api';
-import {ENDPOINT} from '../util/constant';
-import Header from '../components/Header';
-import { Avatar, Card } from 'react-native-paper';
+import { createShimmerPlaceholder } from 'react-native-shimmer-placeholder';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+
+import * as api from '../util/api';
+import Header from '../components/Header';
+import BookingHeroCard from '../components/booking/BookingHeroCard';
+import EmptyStateCard from '../components/booking/EmptyStateCard';
+import AppAlertModal from '../components/feedback/AppAlertModal';
+import { useAppAlert } from '../hooks/useAppAlert';
 import { AppStackParamList } from '../navigation/AppDrawer';
-import DatePickerComponent from '../components/DatePicker';
+import { useAppTheme } from '../theme/AppThemeProvider';
+import { FONT_FAMILY } from '../util/colors';
+import { ENDPOINT } from '../util/constant';
 
 const ShimmerPlaceholder = createShimmerPlaceholder(LinearGradient);
-type Porps=NativeStackScreenProps<AppStackParamList,'AffilatedClub'>
-const AffilatedClubScreen:React.FC<Porps> = ({}) => {
+
+type Props = NativeStackScreenProps<AppStackParamList, 'AffilatedClub'>;
+
+type Club = {
+  club_id: string | number;
+  name: string;
+  city?: string;
+  city_name?: string;
+  address?: string;
+  code?: string;
+  email?: string;
+  website?: string;
+  phone_numbers?: string[];
+  phone_numbers_text?: string;
+  has_contact_details?: boolean;
+  search_index?: string;
+};
+
+type ClubMeta = {
+  total_clubs?: number;
+  cities_covered?: number;
+  clubs_with_contact?: number;
+};
+
+const ensureUrl = (value?: string | null) => {
+  if (!value) {
+    return null;
+  }
+
+  if (value.startsWith('http://') || value.startsWith('https://')) {
+    return value;
+  }
+
+  return `https://${value}`;
+};
+
+const AffilatedClubScreen: React.FC<Props> = () => {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { alertState, hideAlert, showAlert } = useAppAlert();
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredClubs, setFilteredClubs] = useState<any[]>();
-  const [startdate, setstartDate] = useState('From Date');
-  const [enddate, setendDate] = useState('To Date');
-  const [visible, setVisible] = useState(false);
-  const [clubs, setClubs] = useState([]);
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [meta, setMeta] = useState<ClubMeta>({});
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // const handleVisit = name => {
-
-  //   Alert.alert(name,"Feature Coming Soon..")
-  // };
-  const fetchClubs = async () => {
-    const body={}
-    const apiRequestObject = {
-      path:ENDPOINT.affilated_clubs,
-      body: body
-    };
-    const response = await api.javascriptGet(apiRequestObject);
-    
-    if (response.status) {
-      setClubs(response.data)
-      
-    }
-  };
-  useEffect(() => {
-    if (clubs?.length === 0) {
-      
-      fetchClubs();
+  const fetchClubs = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
     } else {
-      const filtered = clubs?.filter((club:any) =>
-        club.name.toLowerCase().includes(searchQuery.toLowerCase()),
-      );
-      setFilteredClubs(filtered); 
+      setLoading(true);
     }
-  }, [searchQuery, clubs]);
 
-  const Datefrom = (date:string, type:string) => {
-    type === 'startdate' ? setstartDate(date) : setendDate(date);
-  };
+    try {
+      const response = await api.javascriptGet({
+        path: ENDPOINT.affilated_clubs,
+        body: {},
+      });
 
-  const handleSubmit = () => {
-    if (!startdate.includes('-') || !enddate.includes('-')) return;
-    if (startdate > enddate || startdate === enddate) {
-      Alert.alert('Please enter a valid date');
+      if (response?.status) {
+        setClubs(Array.isArray(response?.data) ? response.data : []);
+        setMeta(response?.meta || {});
+        return;
+      }
+
+      showAlert({
+        title: 'Unable to load clubs',
+        message: response?.message || 'Please try again in a moment.',
+        tone: 'danger',
+      });
+    } catch (error) {
+      showAlert({
+        title: 'Unable to load clubs',
+        message: 'Something went wrong while fetching affiliated clubs.',
+        tone: 'danger',
+      });
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [showAlert]);
+
+  useEffect(() => {
+    fetchClubs();
+  }, [fetchClubs]);
+
+  const filteredClubs = useMemo(() => {
+    const keyword = searchQuery.trim().toLowerCase();
+
+    if (!keyword) {
+      return clubs;
+    }
+
+    return clubs.filter(club => {
+      const searchable = club.search_index || [
+        club.name,
+        club.city,
+        club.code,
+        club.address,
+        club.phone_numbers_text,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return searchable.includes(keyword);
+    });
+  }, [clubs, searchQuery]);
+
+  const handleOpen = useCallback(async (url?: string | null, fallbackMessage?: string) => {
+    if (!url) {
+      showAlert({
+        title: 'Details unavailable',
+        message: fallbackMessage || 'This club has not shared that contact detail yet.',
+        tone: 'warning',
+      });
       return;
     }
-    setVisible(false);
-    Alert.alert('Booked');
-  };
 
- 
-  // const openGoogleMaps = (latitude, longitude) => {
-  //  Alert.alert("Please Search On Maps")
-  // };
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        throw new Error('Unsupported link');
+      }
 
-  const renderItems = ({ item }:{item:any}) => (
-    <Card style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.cardContent}>
-          <Avatar.Text
-            label={item.name?.charAt(0).toUpperCase()}
-            size={50}
-            style={{ backgroundColor: DARK_BLUE, marginRight: 10 }}
-          />
-          {/* </View> */}
-          <View style={{flex:1,}}>
-          <Text style={styles.clubName}>{item.name}</Text>
-          <Text style={[styles.clubName,{fontFamily:FONT_FAMILY.normal,fontSize:14}]}>{item.city}</Text>
-            {Array.isArray(item.phone_numbers)&& item.phone_numbers?.length >0 &&<View style={{ flexDirection: "row" }}>
-              <Icon name="call" size={20} color={"grey"} />
-              <Text style={[styles.lightText]}>Phone: </Text>
-              <Text  style={[styles.lightText, { color: "black" ,flex:1}]}>
-                {item.phone_numbers || "N/A"}
-              </Text>
-            </View>}
+      await Linking.openURL(url);
+    } catch (error) {
+      showAlert({
+        title: 'Unable to open',
+        message: 'This contact action is not available on the device right now.',
+        tone: 'warning',
+      });
+    }
+  }, [showAlert]);
+
+  const renderSkeleton = () => (
+    <View style={styles.skeletonWrap}>
+          {[1, 2, 3, 4].map(item => (
+        <View key={item} style={styles.card}>
+          <View style={styles.cardHeader}>
+            <ShimmerPlaceholder style={styles.badgeSkeleton} />
+            <View style={styles.flexOne}>
+              <ShimmerPlaceholder style={styles.lineSkeletonWide} />
+              <ShimmerPlaceholder style={styles.lineSkeletonMedium} />
+            </View>
+          </View>
+          <ShimmerPlaceholder style={styles.lineSkeletonWide} />
+          <ShimmerPlaceholder style={styles.lineSkeletonMedium} />
+          <View style={styles.actionRow}>
+            <ShimmerPlaceholder style={styles.actionSkeleton} />
+            <ShimmerPlaceholder style={styles.actionSkeleton} />
           </View>
         </View>
-      </View>
+      ))}
+    </View>
+  );
 
-      <View style={styles.cardFooter}>
-        <View style={styles.phoneContainer}>
-          <View style={{ flexDirection: "row" }}>
-            <Icons name="globe" size={20} color={"grey"} />
-            <Text style={styles.lightText}>Website:</Text>
-            <Text style={[styles.lightText, { width: "75%", color: "black" }]}>
-              {item.website ||"N/A"}
+  const renderClubCard = ({ item }: { item: Club }) => {
+    const primaryPhone = item.phone_numbers?.[0];
+
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.badge}>
+            <Text style={styles.badgeLabel}>
+              {item.name?.trim()?.charAt(0)?.toUpperCase() || 'C'}
             </Text>
           </View>
-          <View
-            style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <View style={{ flexDirection: "row" }}>
-              <Icon name="outgoing-mail" size={25} color={"grey"} />
-              <Text style={styles.lightText}>Email:</Text>
-              <Text style={[styles.lightText, { color: "black" }]}>
-                {item.email||"N/A"}
-              </Text>
-            </View>
-            {/* <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Image
-                style={styles.mapIcon}
-                source={require("../../assets/images/map.png")}
-              />
-              <Text style={styles.clubCity}>{item.City}</Text>
-            </View> */}
+
+          <View style={styles.cardTitleWrap}>
+            <Text style={styles.cardTitle}>{item.name || 'Affiliated Club'}</Text>
+            <Text style={styles.cardSubtitle}>
+              {item.city || item.address || 'Contact details available below'}
+            </Text>
           </View>
+        </View>
+
+        <View style={styles.metaRow}>
+          <InfoPill
+            icon="identifier"
+            label={item.code || 'No code listed'}
+            styles={styles}
+            color={colors.textMuted}
+          />
+          <InfoPill
+            icon="map-marker-outline"
+            label={item.city_name || item.city || 'Location not listed'}
+            styles={styles}
+            color={colors.textMuted}
+          />
+        </View>
+
+        {item.address ? (
+          <View style={styles.detailRow}>
+            <Icon name="office-building-marker-outline" size={18} color={colors.textMuted} />
+            <Text style={styles.detailText}>{item.address}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.detailRow}>
+          <Icon name="phone-outline" size={18} color={colors.textMuted} />
+          <Text style={styles.detailText}>
+            {item.phone_numbers_text || 'Phone details not available'}
+          </Text>
+        </View>
+
+        <View style={styles.detailRow}>
+          <Icon name="email-outline" size={18} color={colors.textMuted} />
+          <Text style={styles.detailText}>{item.email || 'Email not available'}</Text>
+        </View>
+
+        <View style={styles.detailRow}>
+          <Icon name="web" size={18} color={colors.textMuted} />
+          <Text style={styles.detailText}>{item.website || 'Website not available'}</Text>
+        </View>
+
+        <View style={styles.actionRow}>
+          <ActionButton
+            label="Call"
+            icon="phone"
+            onPress={() => handleOpen(primaryPhone ? `tel:${primaryPhone}` : null)}
+            styles={styles}
+            color={colors.text}
+          />
+          <ActionButton
+            label="Email"
+            icon="email"
+            onPress={() => handleOpen(item.email ? `mailto:${item.email}` : null)}
+            styles={styles}
+            color={colors.text}
+          />
+          <ActionButton
+            label="Visit"
+            icon="open-in-new"
+            onPress={() => handleOpen(ensureUrl(item.website))}
+            styles={styles}
+            color={colors.text}
+          />
         </View>
       </View>
-    </Card>
-  );
+    );
+  };
 
-  const emptyList = () => (
-    <FlatList
-      data={[1, 1, 1, 1, 1, 1]}
-      renderItem={() => (
-        <View style={styles.card}>
-          <View style={{flex: 1, alignItems: 'center', flexDirection: 'row'}}>
-            <ShimmerPlaceholder style={styles.roundShimmer} />
-            <View style={{flex: 1, alignItems: 'flex-start', margin: 20}}>
-              <ShimmerPlaceholder style={{}} />
-              <ShimmerPlaceholder style={{width: 50, marginTop: 20}} />
-            </View>
-          </View>
-          <ShimmerPlaceholder style={{margin: 5}} />
-          <ShimmerPlaceholder style={{margin: 5}} />
-        </View>
-      )}
-    />
-  );
   return (
     <View style={styles.screen}>
-    <Header title={'Affiliated Clubs'}/>
-      <View style={styles.container}>
-     
-        <View style={{ marginBottom: 0, flex: 1}}>
-          <View
-            style={{
-              backgroundColor: 'white',
-            marginBottom:10,
-              borderRadius: 8,
-              flexDirection: 'row',
-              alignItems: 'center',
-              borderWidth: 0.4,
-              borderColor: 'grey',
-            }}>
-          <MaterialIcons
-  name="search"
-  size={22}
-  color="black"
-  style={{ marginLeft: 10 }}
-/>
+      <Header title="Affiliated Clubs" />
 
-            <TextInput
-              placeholder="Search Clubs"
-              placeholderTextColor={'grey'}
-              maxLength={30}
-              cursorColor={SECONDARY_COLOR}
-              onChangeText={setSearchQuery}
-              value={searchQuery}
-              style={{
-                flex: 1,fontFamily:FONT_FAMILY.normal,
-                padding: 10,
-              }}
+      <FlatList
+        data={filteredClubs}
+        keyExtractor={item => String(item.club_id)}
+        renderItem={renderClubCard}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => fetchClubs(true)}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+        contentContainerStyle={styles.listContent}
+        ListHeaderComponent={
+          <View>
+            <BookingHeroCard
+              eyebrow="Club Network"
+              title="Affiliated Club Directory"
+              subtitle="Search partner clubs, review contact details, and jump into calls or website links without leaving the app."
+              status={`${meta.total_clubs || clubs.length} clubs`}
+              statusTone="neutral"
+              meta={[
+                {
+                  label: 'Cities',
+                  value: String(meta.cities_covered || 0),
+                },
+                {
+                  label: 'With Contact',
+                  value: String(meta.clubs_with_contact || 0),
+                  tone: 'success',
+                },
+              ]}
             />
-          </View>
-          {filteredClubs?.length ===0  ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>
-                No Clubs found. Please try a different search.
-              </Text>
+
+            <View style={styles.searchWrap}>
+              <Icon name="magnify" size={20} color={colors.textMuted} />
+              <TextInput
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search by club, city, code, or contact"
+                placeholderTextColor={colors.placeholder}
+                style={styles.searchInput}
+                cursorColor={colors.primary}
+              />
+              {searchQuery ? (
+                <Pressable onPress={() => setSearchQuery('')}>
+                  <Icon name="close-circle" size={18} color={colors.textMuted} />
+                </Pressable>
+              ) : null}
             </View>
+          </View>
+        }
+        ListEmptyComponent={
+          loading ? (
+            renderSkeleton()
           ) : (
-            <FlatList
-              data={filteredClubs}
-              ListEmptyComponent={emptyList}
-              style={{flex: 1}}
-              showsVerticalScrollIndicator={false}
-              keyExtractor={(item, index) => index.toString()} // Use item ID or index as key
-              renderItem={renderItems}
+            <EmptyStateCard
+              title="No affiliated clubs found"
+              description="Try a broader search or refresh to load the latest club directory."
             />
-          )}
-        </View>
-      </View>
-      {visible && (
-        <Modal transparent={true} visible={visible} animationType="slide">
-          <View
-            style={{
-              backgroundColor: 'rgba(0,0,0,0.3)',
-              flex: 1,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-            <View
-              style={{
-                backgroundColor: 'white',
-                margin: 20,
-                padding: 10,
-                width: '87%',
-                borderRadius: 10,
-              }}>
-              <View
-                style={{
-                  position: 'absolute',
-                  alignSelf: 'center',
-                  top: -20,
-                  borderRadius: 30,
-                  padding: 5,
-                  backgroundColor: 'white',
-                }}>
-                <Image
-                  source={require('../../assets/images/Logo.png')}
-                  style={{
-                    height: 30,
-                    width: 30,
-                    borderRadius: 30,
-                  }}
-                />
-              </View>
+          )
+        }
+      />
 
-              <Text
-                style={{
-                  textAlign: 'center',
-                  alignSelf: 'center',
-                  width: '70%',
-                  paddingVertical: 10,
-                  marginTop: 10,
-                  fontSize: 16,
-                 fontFamily:FONT_FAMILY.bold
-                }}>
-                Affliated Clubs Visit {clubs}
-              </Text>
-
-              <View style={styles.dateInputContainer}>
-                <DatePickerComponent
-                  placeholder={startdate}
-                  setResetDate={true}
-                  stateDate={date => Datefrom(date, 'startdate')}
-                />
-              </View>
-              <View style={styles.dateInputContainer}>
-                <DatePickerComponent
-                  placeholder={enddate}
-                  setResetDate={true}
-                  stateDate={date => Datefrom(date, 'enddate')}
-                />
-              </View>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  margin: 10,
-                }}>
-                <TouchableOpacity
-                  activeOpacity={0.5}
-                  onPress={() => setVisible(false)}
-                  style={styles.modalButton}>
-                  <Text style={{color: 'white'}}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  activeOpacity={0.5}
-                  style={styles.modalButton}
-                  onPress={handleSubmit}>
-                  <Text style={{color: 'white'}}>Submit</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
+      <AppAlertModal
+        visible={alertState.visible}
+        title={alertState.title}
+        message={alertState.message}
+        tone={alertState.tone}
+        primaryLabel={alertState.primaryLabel}
+        secondaryLabel={alertState.secondaryLabel}
+        onPrimaryPress={() => {
+          alertState.onPrimaryPress?.();
+          hideAlert();
+        }}
+        onSecondaryPress={() => {
+          alertState.onSecondaryPress?.();
+          hideAlert();
+        }}
+        onDismiss={hideAlert}
+      />
     </View>
   );
 };
 
-export default AffilatedClubScreen;
+const InfoPill = ({
+  icon,
+  label,
+  styles,
+  color
+}: {
+  icon: string;
+  label: string;
+  styles: ReturnType<typeof createStyles>;
+  color: string;
+}) => (
+  <View style={styles.infoPill}>
+    <Icon name={icon} size={14} color={color} />
+    <Text numberOfLines={1} style={styles.infoPillLabel}>
+      {label}
+    </Text>
+  </View>
+);
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: 'white',
-  },
-  container: {
-    flex: 1,
-    padding: 20,
-  paddingBottom:0
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex:1
-  },
-  logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  logo: {
-    height: 25,
-    width: 25,
-    borderRadius: 15,
-    marginLeft: 5,
-  },
-  clubTitle: {
-    marginLeft: 5,
-    color: 'black',
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 17,
-    fontWeight: 'bold',
-    color: 'black',
-    alignSelf: 'center',
-  },
-  emptyView: {
-    flex: 1,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: 'gray',
-    textAlign: 'center',fontFamily:FONT_FAMILY.normal
-  },
-  modalButton: {
-    backgroundColor: SECONDARY_COLOR,
-    padding: 10,
-    borderRadius: 5,
-    paddingHorizontal: 20,
-  },
-  card: {
-    flex: 1,
-    marginVertical: 10,
-    backgroundColor: 'white',
-    padding: 10,
-    borderRadius: 8,
-    elevation: 10,
-    shadowColor: 'grey',
-    shadowOffset: {
-      width: 0,
-      height: 1,
+const ActionButton = ({
+  label,
+  icon,
+  onPress,
+  styles,
+  color
+
+}: {
+  label: string;
+  icon: string;
+  onPress: () => void;
+  styles: ReturnType<typeof createStyles>;
+  color: string;
+}) => (
+  <Pressable onPress={onPress} style={styles.actionButton}>
+    <Icon name={icon} size={16} color={color} />
+    <Text style={styles.actionButtonText}>{label}</Text>
+  </Pressable>
+);
+
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 1,
-  },
-  cardHeader: {
-    flex: 1,
-    justifyContent: 'space-between',
-    flexDirection: 'row',
-  },
-  cardContent: {
-    flexDirection: 'row',
-    flex: 1,
-  },
-  dateInputContainer: {
-    margin: 10,
-  },
-  initialContainer: {
-    height: 30,
-    width: 30,
-    backgroundColor: '#222642',
-    marginRight: 10,
-    borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'center',
-  },
-  initialText: {
-    color: 'white',
-   fontFamily:FONT_FAMILY.bold,fontSize:18
-  },
-  clubName: {
-    color: 'black',
-    fontFamily: FONT_FAMILY.bold,
-    fontSize:16,
-    marginVertical: 2,
-  },
-  clubCity: {
-    color: 'black',
-    fontFamily: FONT_FAMILY.normal,
-  },
-  mapIcon: {
-    height: 20,
-    width: 20,
-   marginRight:10,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 10,
-  },
-  phoneContainer: {
-    flex: 1,
-  },
-  lightText: {
-    color: 'grey',
-    marginVertical: 2,
-    marginLeft: 8,
-    fontFamily:FONT_FAMILY.normal
-  },
+    listContent: {
+      paddingBottom: 36,
+    },
+    searchWrap: {
+      marginHorizontal: 16,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 20,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 4,
+    },
+    searchInput: {
+      flex: 1,
+      paddingVertical: 14,
+      paddingHorizontal: 10,
+      color: colors.text,
+      fontFamily: FONT_FAMILY.normal,
+      fontSize: 14,
+    },
+    card: {
+      marginHorizontal: 16,
+      marginBottom: 14,
+      padding: 18,
+      borderRadius: 24,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: '#000',
+      shadowOpacity: 0.08,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 4,
+    },
+    cardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 14,
+    },
+    badge: {
+      width: 54,
+      height: 54,
+      borderRadius: 18,
+      backgroundColor: colors.surfaceAlt,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 14,
+    },
+    badgeLabel: {
+      color: colors.primary,
+      fontFamily: FONT_FAMILY.bold,
+      fontSize: 22,
+    },
+    cardTitleWrap: {
+      flex: 1,
+    },
+    cardTitle: {
+      color: colors.text,
+      fontFamily: FONT_FAMILY.bold,
+      fontSize: 18,
+      lineHeight: 22,
+    },
+    cardSubtitle: {
+      marginTop: 4,
+      color: colors.textMuted,
+      fontFamily: FONT_FAMILY.normal,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    metaRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      marginBottom: 14,
+    },
+    infoPill: {
+      maxWidth: '100%',
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      borderRadius: 999,
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    infoPillLabel: {
+      marginLeft: 6,
+      color: colors.text,
+      fontFamily: FONT_FAMILY.medium,
+      fontSize: 12,
+      flexShrink: 1,
+    },
+    detailRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      marginBottom: 10,
+    },
+    detailText: {
+      flex: 1,
+      marginLeft: 10,
+      color: colors.textMuted,
+      fontFamily: FONT_FAMILY.normal,
+      fontSize: 13,
+      lineHeight: 19,
+    },
+    actionRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 10,
+    },
+    actionButton: {
+      flex: 1,
+      minHeight: 46,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      paddingHorizontal: 10,
+    },
+    actionButtonText: {
+      marginLeft: 6,
+      color: colors.text,
+      fontFamily: FONT_FAMILY.semiBold,
+      fontSize: 13,
+    },
+    skeletonWrap: {
+      paddingHorizontal: 16,
+    },
+    flexOne: {
+      flex: 1,
+    },
+    badgeSkeleton: {
+      width: 54,
+      height: 54,
+      borderRadius: 18,
+      marginRight: 14,
+    },
+    lineSkeletonWide: {
+      width: '88%',
+      height: 16,
+      borderRadius: 8,
+      marginBottom: 10,
+    },
+    lineSkeletonMedium: {
+      width: '65%',
+      height: 14,
+      borderRadius: 8,
+      marginBottom: 10,
+    },
+    actionSkeleton: {
+      flex: 1,
+      height: 44,
+      borderRadius: 16,
+    },
+  });
 
-  visitButton: {
-    backgroundColor: SECONDARY_COLOR,
-    alignContent: 'center',
-    alignSelf: 'center',
-    padding: 10,
-    borderRadius: 10,
-  },
-  visitButtonText: {
-    color: 'white',
-    marginHorizontal: 20,
-    fontWeight: 'bold',
-  },
-  roundShimmer: {
-    width: 50, 
-    height: 50, 
-    borderRadius: 50,
-  },
-});
+export default AffilatedClubScreen;

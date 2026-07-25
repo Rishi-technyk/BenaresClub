@@ -84,8 +84,8 @@ android {
         applicationId "com.technyk.lgc"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "0.0.2"
+        versionCode 6
+        versionName "0.0.6"
     }
     signingConfigs {
         debug {

@@ -2,6 +2,8 @@ import { configureStore } from '@reduxjs/toolkit';
 import { combineReducers } from 'redux';
 import authSlice from './slices/authSlice';
 import cartReducer from './slices/cartSlice';
+import memberFoodReducer from './slices/memberFoodSlice';
+import themeReducer from './slices/themeSlice';
 import { persistStore, persistReducer } from 'redux-persist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { PersistConfig } from 'redux-persist';
@@ -13,7 +15,9 @@ import { roomsApi } from '../screens/Bookings/Room/roomsApi';
 const rootReducer = combineReducers({
   auth: authSlice,
   cart: cartReducer,
-   [roomsApi.reducerPath]: roomsApi.reducer, 
+  memberFood: memberFoodReducer,
+  theme: themeReducer,
+  [roomsApi.reducerPath]: roomsApi.reducer,
 });
 
 // ---------------------
@@ -22,7 +26,7 @@ const rootReducer = combineReducers({
 const persistConfig: PersistConfig<ReturnType<typeof rootReducer>> = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['auth', 'cart'], // reducers to persist
+  whitelist: ['auth', 'cart', 'memberFood', 'theme'], // reducers to persist
 };
 
 // ---------------------

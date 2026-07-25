@@ -8,7 +8,8 @@ import {
   StyleProp,
   ViewStyle,
 } from "react-native";
-import { FONT_FAMILY, SECONDARY_COLOR, DARK_BLUE } from "../util/colors";
+import { FONT_FAMILY } from "../util/colors";
+import { useAppTheme } from "../theme/AppThemeProvider";
 
 /* -------------------------------------------
    Types
@@ -31,6 +32,9 @@ const NewButton: React.FC<NewButtonProps> = ({
   loading = false,
   style,
 }) => {
+  const { colors } = useAppTheme();
+  const styles = createStyles(colors);
+
   return (
     <TouchableOpacity
       activeOpacity={0.9}
@@ -39,7 +43,7 @@ const NewButton: React.FC<NewButtonProps> = ({
       onPress={onPress}
     >
       {loading && (
-        <ActivityIndicator color={"white"} style={{ marginRight: 10 }} />
+        <ActivityIndicator color={colors.onPrimary} style={{ marginRight: 10 }} />
       )}
 
       <Text style={styles.buttonText}>{text}</Text>
@@ -53,23 +57,28 @@ export default NewButton;
    Styles
 ------------------------------------------- */
 
-const styles = StyleSheet.create({
+const createStyles = (colors: {
+  secondary: string;
+  onPrimary: string;
+  primary: string;
+}) =>
+  StyleSheet.create({
   buttonContainer: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: SECONDARY_COLOR,
+    backgroundColor: colors.secondary,
     padding: 10,
     borderRadius: 5,
     flexDirection: "row",
   },
   buttonText: {
-    color: "white",
+    color: colors.onPrimary,
     fontSize: 16,
     fontFamily: FONT_FAMILY.semiBold,
     textAlign: "center",
   },
   submitButton: {
-    backgroundColor: DARK_BLUE,
+    backgroundColor: colors.primary,
     borderRadius: 10,
   },
 });
