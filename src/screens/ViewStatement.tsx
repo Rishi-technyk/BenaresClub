@@ -42,7 +42,13 @@ const initialFilters = {
   limit: 150,
 };
 
-const currency = value => `₹${Number(value || 0).toFixed(2)}`;
+const currency = value => {
+    const num = Number(value || 0);
+    return num < 0
+        ? `- ₹${Math.abs(num).toFixed(2)}`
+        : `₹${num.toFixed(2)}`;
+};
+
 
 type Props = NativeStackScreenProps<AppStackParamList,'ViewStatement'>;
 const ViewStatement:React.FC<Props> = ({ navigation }) => {
@@ -253,7 +259,7 @@ const ViewStatement:React.FC<Props> = ({ navigation }) => {
                  >
           <View style={styles.heroTop}>
             <View>
-              <Text style={styles.eyebrow}>Current Outstanding</Text>
+              <Text style={styles.eyebrow}>Current Dues</Text>
               <Text style={styles.heroValue}>{currency(summary.outstanding_amount)}</Text>
             </View>
  {(summary.pdf_exsist || summary.pdf) &&  <TouchableOpacity
@@ -309,7 +315,7 @@ const ViewStatement:React.FC<Props> = ({ navigation }) => {
         </View>
 
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Payment Action</Text>
+                    <Text style={styles.sectionTitle}>Amount to be paid</Text>
           <View style={styles.payRow}>
             <TextInput
               style={[styles.amountInput, amountError ? styles.amountInputError : null]}

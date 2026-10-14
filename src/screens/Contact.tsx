@@ -247,7 +247,7 @@ const { colors } = useAppTheme();
         />
 
         {/* ------- Input Fields ------- */}
-        {Inputs.map((item, index) => (
+        {/* {Inputs.map((item, index) => (
           <View key={item.id} style={{ marginBottom: 15 }}>
             <Text style={{ color: colors.text, fontFamily: FONT_FAMILY.normal }}>
               {item.name}
@@ -288,7 +288,7 @@ const { colors } = useAppTheme();
           </View>
         ))}
 
-        <NewButton loading={loading} onPress={handleSubmit} text="Ask A Question" />
+        <NewButton loading={loading} onPress={handleSubmit} text="Ask A Question" /> */}
       </KeyboardAwareScrollView>
     </View>
   );

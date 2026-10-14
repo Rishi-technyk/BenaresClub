@@ -25,7 +25,7 @@ const NotificationListScreen: React.FC<Props> = ({ navigation, route }) => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const { colors } = useAppTheme();
-
+console.log( notificationdata, '---------------------- notificationdata ---------------------');
 
   const token = useSelector((state: RootState) => state.auth.token);
   const fetchNotifications = useCallback(async (pageNumber = 1) => {

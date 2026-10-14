@@ -94,7 +94,7 @@ const [openCheckIn, setOpenCheckIn] = useState(false);
 const [openCheckOut, setOpenCheckOut] = useState(false);
 const {colors} = useAppTheme();
 const styles = createStyles(colors);
-
+console.log( rooms, '---------------------- roomsr ---------------------');
 const updateDates = (checkIn: Date, checkOut: Date) => {
   setBooking(prev => ({
     ...prev,

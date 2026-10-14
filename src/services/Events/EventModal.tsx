@@ -3,7 +3,6 @@ import {
   Dimensions,
   Image,
   Modal,
-  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -13,11 +12,13 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { FONT_FAMILY, SECONDARY_COLOR } from "../../util/colors";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { DOMAIN } from "../../util/constant";
 
 const { height, width } = Dimensions.get("window");
 
-const EventModal: React.FC<{ eventModal: any; setEventModal: ()=>void }> = ({ eventModal, setEventModal }) => {
+const EventModal: React.FC<{
+  eventModal: any;
+  setEventModal: React.Dispatch<React.SetStateAction<any>>;
+}> = ({ eventModal, setEventModal }) => {
   const navigation = useNavigation();
 
   const closeModal = () => {
@@ -27,7 +28,7 @@ const EventModal: React.FC<{ eventModal: any; setEventModal: ()=>void }> = ({ ev
   const handleNavigate = () => {
     closeModal();
     if (eventModal?.navigation) {
-      navigation.navigate(eventModal.navigation,{url:eventModal.data});
+      (navigation as any).navigate(eventModal.navigation, { url: eventModal.data });
     }
   };
 console.log( eventModal?.image, '---------------------- eventModal?.image,---------------------');
@@ -82,8 +83,7 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     position: "absolute",
-    top: Platform.OS === "android" ? 20 : 10,
-    top:50,
+    top: Platform.OS === "android" ? 50 : 50,
     right: 20,
     zIndex: 10,
     padding: 10,

@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "807192683712",
-    "project_id": "lg-club-f65c3",
-    "storage_bucket": "lg-club-f65c3.firebasestorage.app"
+    "project_number": "804523312712",
+    "project_id": "benares-club",
+    "storage_bucket": "benares-club.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:807192683712:android:50baa00622b584968eb925",
+        "mobilesdk_app_id": "1:804523312712:android:c768266140ddc5ebeb7a7d",
         "android_client_info": {
-          "package_name": "com.technyk.lgc"
+          "package_name": "com.technyk.benaresclub"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCz8ru12GPgUJLeo9sTl81hke8vtKmmjJc"
+          "current_key": "AIzaSyC2i_wx0hlbd42XMqjERVTSQB0mKZ5AmDo"
         }
       ],
       "services": {

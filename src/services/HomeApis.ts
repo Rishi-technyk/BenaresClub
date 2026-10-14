@@ -18,6 +18,10 @@ export interface HomeDashboardSummary {
   bill_month_year?: string | null;
   unbilled_credit?:string | number | null;
   pay_status?: string | null;
+  location_enable?: string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  radius?: number | string | null;
 }
 
 export interface HomeDashboardCard {

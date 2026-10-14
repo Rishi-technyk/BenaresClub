@@ -19,4 +19,16 @@ buildscript {
     }
 }
 
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        flatDir {
+            dirs "$rootDir/../node_modules/react-native-payphi-sdk/android/libs"
+        }
+    }
+}
+
+
 apply plugin: "com.facebook.react.rootproject"

@@ -41,8 +41,9 @@ export const getDashboardConfig = async () => {
 };
 export const getDrawerConfig = async () => {
   try {
-    // 1️⃣ Load cached config first
+    // 1️⃣ Load cached rem first
     const cached = await AsyncStorage.getItem(DRAWER_KEY);
+  
     let localConfig = cached ? JSON.parse(cached) : null;
 
     // 2️⃣ Fetch latest from backend

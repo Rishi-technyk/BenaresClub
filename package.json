@@ -45,6 +45,7 @@
     "react-native-modal": "^14.0.0-rc.1",
     "react-native-nfc-manager": "^3.17.2",
     "react-native-paper": "^5.14.5",
+    "react-native-payphi-sdk": "file:react-native-payphi-sdk-0.0.1.tgz",
     "react-native-pdf": "^7.0.3",
     "react-native-permissions": "^5.6.0",
     "react-native-print": "^0.11.0",

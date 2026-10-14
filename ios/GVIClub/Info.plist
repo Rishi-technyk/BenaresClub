@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>LGC LKO</string>
+	<string>Benares Club</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -90,12 +90,10 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>We need camera access to scan QR codes</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>We need your location to verify that you are inside the club premises.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Location is used to improve service accuracy.</string>
-  <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>We need your location to verify that you are inside the club premises.</string>
-    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>We need your location to verify that you are inside the club premises.</string>
+	<string>We need your location to verify that you are inside the club premises.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This App requires access to your photo library to allow you to upload and select photos.</string>
 	<key>NSUserNotificationUsageDescription</key>
@@ -160,6 +158,8 @@
 		<string>SimpleLineIcons.ttf</string>
 		<string>Zocial.ttf</string>
 	</array>
+  <key>AppIdentifierPrefix</key>
+  <string>$(AppIdentifierPrefix)</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

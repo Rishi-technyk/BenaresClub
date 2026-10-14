@@ -51,16 +51,15 @@ export const ENV: EnvConfig = {
 /* ------------------------------------------------------------------
    DOMAIN CONSTANTS
 -------------------------------------------------------------------*/
-console.log(PUBLIC_URL,'skldfkdksdfjsdlsfsdklfdsfklsdfkldsf');
 export const DOMAIN = {
   APP_NAME:APP_NAME,
-  // BASE: API_BASE_URL,
-  BASE: 'https://www.lgc.in/MemberPortal/api/v2/',
+  BASE: API_BASE_URL,
+  // BASE: 'https://gvicc.in/benaresclub.in/member/api/',
   // LOCAL:API_LOCAL_URL,
   // LOCAL:'http://192.168.100.100:8000/api/',
   API_IMAGE_URL:API_IMAGE_URL,
-  // IMG:PUBLIC_URL,
-  IMG:'https://www.lgc.in/MemberPortal/public/',
+  IMG:PUBLIC_URL,
+  // IMG:'https://www.lgc.in/MemberPortal/public/',
   ICON_URL:ICON_URL
 };
 
@@ -200,6 +199,7 @@ export const ENDPOINT = {
        //mmr
        get_mmr_settings:'member/get-mmr',
        register_mmr_member:'member/register/mmr-member',
+       update_mmr_member:'member/update-mmr-booking',
        mmr_history:'member/mmr-history',
 
 

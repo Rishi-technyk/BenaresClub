@@ -79,28 +79,32 @@ android {
     project.ext.vectoricons = [
     iconFontNames: [ 'MaterialIcons.ttf', 'Ionicons.ttf', 'FontAwesome.ttf' ]
 ]
-    namespace "com.technyk.lgc"
+    namespace "com.technyk.benaresclub"
     defaultConfig {
-        applicationId "com.technyk.lgc"
+        applicationId "com.technyk.benaresclub"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 6
-        versionName "0.0.6"
+        versionCode 2
+        versionName "0.0.2"
     }
     signingConfigs {
         debug {
-           storeFile file('afsc.jks')
+           storeFile file('benaresclub.jks')
             storePassword 'qwerty'
             keyAlias 'key-1'
             keyPassword 'qwerty'
         }
          release {
-             storeFile file('afsc.jks')
+             storeFile file('benaresclub.jks')
             storePassword 'qwerty'
             keyAlias 'key-1'
             keyPassword 'qwerty'
         }
     }
+       buildFeatures {
+viewBinding true
+dataBinding true
+}
     buildTypes {
         debug {
             signingConfig signingConfigs.debug

@@ -1,6 +1,4 @@
 
-
-
 # Resolve react_native_pods.rb with node to allow for hoisting
 require Pod::Executable.execute_command('node', ['-p',
   'require.resolve(
@@ -23,45 +21,45 @@ if linkage != nil
 end
 $RNVisionCameraEnableFrameProcessors = false
 
-target 'LGC' do
+target 'BenaresClub' do
   config = use_native_modules!
   pod 'FirebaseCoreInternal', :modular_headers => true
   pod 'GoogleUtilities', :modular_headers => true
   pod 'FirebaseCore', :modular_headers => true
-  pod 'Firebase/Messaging' 
+  pod 'Firebase/Messaging'
   pod 'RNVectorIcons', :path => '../node_modules/react-native-vector-icons'
   use_react_native!(
-    :path => config[:reactNativePath],
-    # An absolute path to your application root.
-    :app_path => "#{Pod::Config.instance.installation_root}/.."
-  )
-
-post_install do |installer|
-
-  react_native_post_install(
-    installer,
-    config[:reactNativePath],
-    :mac_catalyst_enabled => false
-  )
-
-  # HyperSDK
-  fuse_path = "./Pods/HyperSDK/Fuse.rb"
-  clean_assets = false
-
-  if File.exist?(fuse_path)
-    system("ruby", fuse_path.to_s, clean_assets.to_s)
-  end
-
-    installer.pods_project.targets.each do |target|
-    target.build_configurations.each do |config|
-      # Use GNU++20 to support unordered_map::contains
-      config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++20'
-      config.build_settings['CLANG_CXX_LIBRARY'] = 'libc++'
-
-      # Remove duplicate linker flags (RN quirk)
-      flags = config.build_settings['OTHER_LDFLAGS']
-      config.build_settings['OTHER_LDFLAGS'] = flags.uniq if flags.is_a?(Array)
-    end
-  end
-  end
-end
+                    :path => config[:reactNativePath],
+                    # An absolute path to your application root.
+                    :app_path => "#{Pod::Config.instance.installation_root}/.."
+                    )
+                    #
+                    post_install do |installer|
+                    
+                      react_native_post_install(
+                        installer,
+                        config[:reactNativePath],
+                        :mac_catalyst_enabled => false
+                      )
+                    
+                      # HyperSDK
+                      fuse_path = "./Pods/HyperSDK/Fuse.rb"
+                      clean_assets = false
+                    
+                      if File.exist?(fuse_path)
+                        system("ruby", fuse_path.to_s, clean_assets.to_s)
+                      end
+                    
+                        installer.pods_project.targets.each do |target|
+                        target.build_configurations.each do |config|
+                          # Use GNU++20 to support unordered_map::contains
+                          config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++20'
+                          config.build_settings['CLANG_CXX_LIBRARY'] = 'libc++'
+                    
+                          # Remove duplicate linker flags (RN quirk)
+                          flags = config.build_settings['OTHER_LDFLAGS']
+                          config.build_settings['OTHER_LDFLAGS'] = flags.uniq if flags.is_a?(Array)
+                        end
+                      end
+                      end
+                    end

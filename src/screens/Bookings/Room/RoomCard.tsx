@@ -95,7 +95,7 @@ const styles = createStyles(colors);
       <View style={styles.card}>
         {/* Header */}
         <View style={{ flexDirection: 'row' }}>
-          <Image source={{ uri: `${PUBLIC_URL}${room.image }`}} style={styles.img} />
+          <Image source={{ uri: `${room.image }`}} style={styles.img} />
           {/* <Image source={{ uri: 'https://st.hzcdn.com/simgs/23d10aba05948770_14-2874/home-design.jpg' }} style={styles.img} /> */}
 
           <View style={{ flex: 1 }}>

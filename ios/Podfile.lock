@@ -34,47 +34,47 @@ PODS:
     - nanopb (~> 3.30910.0)
   - fmt (11.0.2)
   - glog (0.3.5)
-  - GoogleDataTransport (10.1.0):
+  - GoogleDataTransport (10.1.1):
     - nanopb (~> 3.30910.0)
     - PromisesObjC (~> 2.4)
-  - GoogleUtilities (8.1.0):
-    - GoogleUtilities/AppDelegateSwizzler (= 8.1.0)
-    - GoogleUtilities/Environment (= 8.1.0)
-    - GoogleUtilities/Logger (= 8.1.0)
-    - GoogleUtilities/MethodSwizzler (= 8.1.0)
-    - GoogleUtilities/Network (= 8.1.0)
-    - "GoogleUtilities/NSData+zlib (= 8.1.0)"
-    - GoogleUtilities/Privacy (= 8.1.0)
-    - GoogleUtilities/Reachability (= 8.1.0)
-    - GoogleUtilities/SwizzlerTestHelpers (= 8.1.0)
-    - GoogleUtilities/UserDefaults (= 8.1.0)
-  - GoogleUtilities/AppDelegateSwizzler (8.1.0):
+  - GoogleUtilities (8.1.4):
+    - GoogleUtilities/AppDelegateSwizzler (= 8.1.4)
+    - GoogleUtilities/Environment (= 8.1.4)
+    - GoogleUtilities/Logger (= 8.1.4)
+    - GoogleUtilities/MethodSwizzler (= 8.1.4)
+    - GoogleUtilities/Network (= 8.1.4)
+    - "GoogleUtilities/NSData+zlib (= 8.1.4)"
+    - GoogleUtilities/Privacy (= 8.1.4)
+    - GoogleUtilities/Reachability (= 8.1.4)
+    - GoogleUtilities/SwizzlerTestHelpers (= 8.1.4)
+    - GoogleUtilities/UserDefaults (= 8.1.4)
+  - GoogleUtilities/AppDelegateSwizzler (8.1.4):
     - GoogleUtilities/Environment
     - GoogleUtilities/Logger
     - GoogleUtilities/Network
     - GoogleUtilities/Privacy
-  - GoogleUtilities/Environment (8.1.0):
+  - GoogleUtilities/Environment (8.1.4):
     - GoogleUtilities/Privacy
-  - GoogleUtilities/Logger (8.1.0):
+  - GoogleUtilities/Logger (8.1.4):
     - GoogleUtilities/Environment
     - GoogleUtilities/Privacy
-  - GoogleUtilities/MethodSwizzler (8.1.0):
+  - GoogleUtilities/MethodSwizzler (8.1.4):
     - GoogleUtilities/Logger
     - GoogleUtilities/Privacy
-  - GoogleUtilities/Network (8.1.0):
+  - GoogleUtilities/Network (8.1.4):
     - GoogleUtilities/Logger
     - "GoogleUtilities/NSData+zlib"
     - GoogleUtilities/Privacy
     - GoogleUtilities/Reachability
-  - "GoogleUtilities/NSData+zlib (8.1.0)":
+  - "GoogleUtilities/NSData+zlib (8.1.4)":
     - GoogleUtilities/Privacy
-  - GoogleUtilities/Privacy (8.1.0)
-  - GoogleUtilities/Reachability (8.1.0):
+  - GoogleUtilities/Privacy (8.1.4)
+  - GoogleUtilities/Reachability (8.1.4):
     - GoogleUtilities/Logger
     - GoogleUtilities/Privacy
-  - GoogleUtilities/SwizzlerTestHelpers (8.1.0):
+  - GoogleUtilities/SwizzlerTestHelpers (8.1.4):
     - GoogleUtilities/MethodSwizzler
-  - GoogleUtilities/UserDefaults (8.1.0):
+  - GoogleUtilities/UserDefaults (8.1.4):
     - GoogleUtilities/Logger
     - GoogleUtilities/Privacy
   - hermes-engine (0.81.5):
@@ -143,8 +143,8 @@ PODS:
     - nanopb/encode (= 3.30910.0)
   - nanopb/decode (3.30910.0)
   - nanopb/encode (3.30910.0)
-  - PromisesObjC (2.4.0)
-  - razorpay-core-pod (1.0.6)
+  - PromisesObjC (2.4.1)
+  - razorpay-core-pod (1.0.9)
   - razorpay-pod (1.5.0):
     - razorpay-core-pod
   - RCT-Folly (2024.11.18.00):
@@ -1975,6 +1975,8 @@ PODS:
     - Yoga
   - react-native-nfc-manager (3.17.2):
     - React-Core
+  - react-native-payphi-sdk (0.0.1):
+    - React-Core
   - react-native-pdf (7.0.3):
     - boost
     - DoubleConversion
@@ -3121,6 +3123,7 @@ DEPENDENCIES:
   - react-native-geolocation-service (from `../node_modules/react-native-geolocation-service`)
   - react-native-image-picker (from `../node_modules/react-native-image-picker`)
   - react-native-nfc-manager (from `../node_modules/react-native-nfc-manager`)
+  - react-native-payphi-sdk (from `../node_modules/react-native-payphi-sdk`)
   - react-native-pdf (from `../node_modules/react-native-pdf`)
   - react-native-print (from `../node_modules/react-native-print`)
   - react-native-razorpay (from `../node_modules/react-native-razorpay`)
@@ -3290,6 +3293,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-image-picker"
   react-native-nfc-manager:
     :path: "../node_modules/react-native-nfc-manager"
+  react-native-payphi-sdk:
+    :path: "../node_modules/react-native-payphi-sdk"
   react-native-pdf:
     :path: "../node_modules/react-native-pdf"
   react-native-print:
@@ -3409,15 +3414,15 @@ SPEC CHECKSUMS:
   FirebaseMessaging: d33971b7bb252745ea6cd31ab190d1a1df4b8ed5
   fmt: a40bb5bd0294ea969aaaba240a927bd33d878cdd
   glog: 5683914934d5b6e4240e497e0f4a3b42d1854183
-  GoogleDataTransport: aae35b7ea0c09004c3797d53c8c41f66f219d6a7
-  GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
+  GoogleDataTransport: a24e58982ab3ba2f64d79613e027fe7f57e88539
+  GoogleUtilities: db34c1c11c6f2eccb6fab2340cb8ceb1451299dc
   hermes-engine: 9f4dfe93326146a1c99eb535b1cb0b857a3cd172
   HtmlToPdf: 6a9c28f54ec810d1d120a698a9b3c83e2bdb1672
   lottie-ios: 8f959969761e9c45d70353667d00af0e5b9cadb3
   lottie-react-native: 983fd0489530e8d40f173de7f04e2f88b9317a15
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
-  PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
-  razorpay-core-pod: 6da5fb4ed280279d665507fdb50e213d793a5fe2
+  PromisesObjC: 752c3227f599e3467650e47ea36f433eeb10c273
+  razorpay-core-pod: 7ecea8ed3c47751e6a958f6c88126ea068f8c8fc
   razorpay-pod: f634f1b8397eb54d547f25d35291f679545ddf17
   RCT-Folly: 846fda9475e61ec7bcbf8a3fe81edfcaeb090669
   RCTDeprecation: 5eb1d2eeff5fb91151e8a8eef45b6c7658b6c897
@@ -3457,6 +3462,7 @@ SPEC CHECKSUMS:
   react-native-geolocation-service: 32b2c2a3b91e70ce2a8d0c684801aaeb0a07e0ec
   react-native-image-picker: 0314366753615115fa55c3cc937ac44cb7e75702
   react-native-nfc-manager: c8891e460b4943b695d63f7f4effc6345bbefc83
+  react-native-payphi-sdk: 45cd3a918bc44a0b90d750a74c769919bbd00abc
   react-native-pdf: edc236298f13f1609e42d41e45b8b6ea88ed10f9
   react-native-print: 692e8782bc89872ea01738c6759631388e77358c
   react-native-razorpay: 376ba84b614ef8a22b5701df4ffee10f4c116d14
@@ -3511,6 +3517,6 @@ SPEC CHECKSUMS:
   VisionCamera: 7187b3dac1ff3071234ead959ce311875748e14f
   Yoga: 728df40394d49f3f471688747cf558158b3a3bd1
 
-PODFILE CHECKSUM: 07f963269bff3e3e9523e16066b232bb5e7e1435
+PODFILE CHECKSUM: a0f58cf74fea0736c6ac1f7a7b3d25271ee39bdb
 
 COCOAPODS: 1.16.2
