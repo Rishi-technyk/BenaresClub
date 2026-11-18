@@ -19,8 +19,6 @@ const InAppUpdate: React.FC = () => {
     try {
       const result: NeedsUpdateResponse = await inAppUpdates.checkNeedsUpdate({curVersion:Version});
 
-      console.log("Update Check Result: ", result.shouldUpdate);
-
       if (result.shouldUpdate) {
         if (Platform.OS === "android") {
           const updateOptions: StartUpdateOptions = {

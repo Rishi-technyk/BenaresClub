@@ -18,7 +18,6 @@ import { createShimmerPlaceholder } from 'react-native-shimmer-placeholder';
 import LinearGradient from 'react-native-linear-gradient';
 
 import Header from '../../components/Header';
-import BookingHeroCard from '../../components/booking/BookingHeroCard';
 import EmptyStateCard from '../../components/booking/EmptyStateCard';
 import { AppStackParamList } from '../../navigation/AppDrawer';
 import { RootState } from '../../store/store';
@@ -468,17 +467,7 @@ const MyBookings: React.FC<Props> = ({ navigation, route }) => {
         <AnalyticsCard label="Cancelled" value={analytics.cancelled} colors={colors} tone="danger" />
       </View>
 
-      <BookingHeroCard
-        eyebrow="Booking Hub"
-        title={`${toggle} History`}
-        subtitle={`Track upcoming, active, and completed ${toggle?.toLowerCase()} reservations from one place.`}
-        status={`${analytics.total} records`}
-        meta={[
-          { label: 'Active', value: String(analytics.active), tone: 'success' },
-          { label: 'Pending', value: String(analytics.pending), tone: 'warning' },
-          { label: 'Cancelled', value: String(analytics.cancelled), tone: 'danger' },
-        ]}
-      />
+     
 
       {isInitialLoading ? (
         <ShimmerList colors={colors} />

@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   View,
+  ActivityIndicator,
 } from 'react-native';
 import LottieView from 'lottie-react-native';
 
@@ -23,13 +24,11 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSelector } from 'react-redux';
 import { useQueryClient } from '@tanstack/react-query';
 import InAppBrowser from 'react-native-inappbrowser-reborn';
-import { APP_NAME, getway as APP_GATEWAY } from '@env';
+import { APP_NAME, getway as APP_GATEWAY,ICON_URL } from '@env';
 
 import Header from '../../components/Header';
 import DetailSection from '../../components/booking/DetailSection';
 import PaymentSummaryCard from '../../components/payment/PaymentSummaryCard';
-import StatusTimeline from '../../components/timeline/StatusTimeline';
-import EmptyStateCard from '../../components/booking/EmptyStateCard';
 import { AppStackParamList } from '../../navigation/AppDrawer';
 import { RootState } from '../../store/store';
 import { useAppTheme } from '../../theme/AppThemeProvider';
@@ -59,6 +58,21 @@ const PAYPHI_GATEWAY_SLUGS = new Set([
   'payphi_hdfc',
   'hdfc_payphi',
 ]);
+
+const PAYMENT_GATEWAY_OPTIONS = [
+  {
+    slug: 'payphi',
+    name: 'PayPhi',
+    description: 'Pay securely using PayPhi.',
+    icon: 'shield-check-outline',
+  },
+  {
+    slug: 'razorpay',
+    name: 'Razorpay',
+    description: 'Pay using UPI, cards, net banking and supported methods.',
+    icon: 'credit-card-outline',
+  },
+] as const;
 
 const wait = (ms: number): Promise<void> =>
   new Promise(resolve => setTimeout(() => resolve(), ms));
@@ -362,7 +376,7 @@ const UniversalPaymentScreen: React.FC<Props> = ({ navigation, route }) => {
   const queryClient = useQueryClient();
   const userData = useSelector((state: RootState) => state.auth);
   const { orderData, type } = route.params;
-
+console.log( orderData, '---------------------- orderData ---------------------');
   const startedRef = useRef(false);
   const pollingRef = useRef(false);
   const scale = useSharedValue(0.92);
@@ -378,6 +392,14 @@ const UniversalPaymentScreen: React.FC<Props> = ({ navigation, route }) => {
   const [errorMessage, setErrorMessage] = useState('');
   const [paymentResult, setPaymentResult] = useState<any>(null);
   const [statusPayload, setStatusPayload] = useState<any>(null);
+  const [showGatewayPicker, setShowGatewayPicker] = useState(
+    Boolean(orderData?.gateway_selection_required || orderData?.requires_gateway_selection),
+  );
+  const [selectedGateway, setSelectedGateway] = useState<'payphi' | 'razorpay'>(
+    normalizeGatewayValue(orderData?.default_gateway) === 'razorpay' ? 'razorpay' : 'payphi',
+  );
+  const [selectingGateway, setSelectingGateway] = useState(false);
+  const [gatewaySelectionError, setGatewaySelectionError] = useState('');
   const { alertState, showAlert, hideAlert } = useAppAlert();
   const configuredGateway = String(APP_GATEWAY || '')
     .replace(/['"]/g, '')
@@ -419,6 +441,11 @@ const UniversalPaymentScreen: React.FC<Props> = ({ navigation, route }) => {
         orderData?.retry_endpoint ||
         (statusReference ? `${ENDPOINT.centralized_payment_retry}${statusReference}` : null),
       verifyEndpoint: orderData?.verify_endpoint || orderData?.end_point || null,
+      gatewaySelectionEndpoint:
+        orderData?.gateway_selection_endpoint ||
+        orderData?.initiate_endpoint ||
+        orderData?.payment_gateway_endpoint ||
+        null,
       isCentralized: Boolean(orderData?.status_reference || orderData?.gateway || orderData?.checkout),
     };
   }, [colors.primary, orderData]);
@@ -427,6 +454,150 @@ const UniversalPaymentScreen: React.FC<Props> = ({ navigation, route }) => {
     const fromPayload = String(paymentConfig.gatewaySlug || '').trim().toLowerCase();
     return fromPayload || configuredGateway || '';
   }, [configuredGateway, paymentConfig.gatewaySlug]);
+
+  const availableGatewayOptions = useMemo(() => {
+    const configuredOptions = orderData?.available_gateways || orderData?.gateway_options;
+
+    // Backward-compatible default. New backend responses should send the enabled list.
+    if (!Array.isArray(configuredOptions)) {
+      return [...PAYMENT_GATEWAY_OPTIONS];
+    }
+
+    const enabledSlugs = new Set(
+      configuredOptions
+        .filter((item: any) => typeof item === 'string' || item?.enabled !== false)
+        .map((item: any) =>
+          normalizeGatewayValue(
+            typeof item === 'string' ? item : item?.slug || item?.gateway,
+          ),
+        ),
+    );
+
+    return PAYMENT_GATEWAY_OPTIONS.filter(option => enabledSlugs.has(option.slug));
+  }, [orderData]);
+
+  const activeSelectedGateway = availableGatewayOptions.some(
+    option => option.slug === selectedGateway,
+  )
+    ? selectedGateway
+    : availableGatewayOptions[0]?.slug || selectedGateway;
+
+  useEffect(() => {
+    if (availableGatewayOptions.length > 0) {
+      setSelectedGateway(current =>
+        availableGatewayOptions.some(option => option.slug === current)
+          ? current
+          : availableGatewayOptions[0].slug,
+      );
+    }
+  }, [availableGatewayOptions]);
+
+  const initiateSelectedGateway = useCallback(async () => {
+    const endpoint = paymentConfig.gatewaySelectionEndpoint;
+
+    if (!endpoint) {
+      setGatewaySelectionError(
+        'Payment gateway selection is not configured. Please contact the club office.',
+      );
+      return;
+    }
+
+    if (!availableGatewayOptions.some(option => option.slug === activeSelectedGateway)) {
+      setGatewaySelectionError('Please select an available payment gateway.');
+      return;
+    }
+
+    setSelectingGateway(true);
+    setGatewaySelectionError('');
+
+    try {
+      const response = await javascriptPost({
+        path: endpoint,
+        body: { payment_gateway: activeSelectedGateway },
+        Token: userData?.token,
+      });
+console.log( response, '---------------------- response ---------------------');
+      const responseBody = response?.data?.data || response?.data || response;
+      const nextOrderData =
+        responseBody?.order_data ||
+        responseBody?.orderData ||
+        responseBody;
+
+      if (
+        response?.status === false ||
+        response?.success === false ||
+        responseBody?.status === false ||
+        responseBody?.success === false ||
+        !nextOrderData ||
+        typeof nextOrderData !== 'object' ||
+        Array.isArray(nextOrderData)
+      ) {
+        throw new Error(
+          response?.message || responseBody?.message || 'Unable to initialize the selected gateway.',
+        );
+      }
+
+      const returnedGatewaySlug = normalizeGatewayValue(
+        nextOrderData?.gateway?.slug ||
+          nextOrderData?.checkout?.provider ||
+          nextOrderData?.payment_gateway ||
+          nextOrderData?.gateway_slug,
+      );
+      const returnedGatewayMatches =
+        activeSelectedGateway === 'payphi'
+          ? isPayPhiGateway(returnedGatewaySlug)
+          : returnedGatewaySlug === 'razorpay';
+
+      if (!returnedGatewayMatches) {
+        throw new Error(
+          'The server returned payment details for a different gateway. Please try again.',
+        );
+      }
+
+      const selectedOption = availableGatewayOptions.find(
+        option => option.slug === activeSelectedGateway,
+      );
+
+      // Preserve the selector endpoint/options so the member can switch gateways
+      // after a definitive failure, while the new gateway payload wins.
+      const mergedOrderData = {
+        ...orderData,
+        ...nextOrderData,
+        gateway: {
+          ...(orderData?.gateway || {}),
+          ...(nextOrderData?.gateway || {}),
+          slug: returnedGatewaySlug,
+          name: nextOrderData?.gateway?.name || selectedOption?.name,
+        },
+        gateway_selection_required: false,
+        requires_gateway_selection: false,
+        gateway_selection_endpoint: endpoint,
+        available_gateways: orderData?.available_gateways ||
+          orderData?.gateway_options ||
+          PAYMENT_GATEWAY_OPTIONS.map(option => ({ slug: option.slug, enabled: true })),
+        selected_gateway: activeSelectedGateway,
+      };
+
+      navigation.replace('UniversalPayment', {
+        type,
+        orderData: mergedOrderData,
+      });
+    } catch (error: any) {
+      setGatewaySelectionError(
+        error?.message || 'Unable to start payment. Please try again.',
+      );
+    } finally {
+      setSelectingGateway(false);
+    }
+  }, [
+    activeSelectedGateway,
+    availableGatewayOptions,
+    navigation,
+    orderData,
+    paymentConfig.gatewaySelectionEndpoint,
+    type,
+    userData?.token,
+  ]);
 
   const invalidateRelatedQueries = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['transactions'] });
@@ -804,6 +975,7 @@ const UniversalPaymentScreen: React.FC<Props> = ({ navigation, route }) => {
         email: userData?.user?.Email,
         contact: userData?.user?.Mobile,
       },
+      image:'https://benaresclub.in/member/public/uploads/logo/1789990978.png',
       theme: {
         color: paymentConfig.brandColor,
       },
@@ -822,6 +994,7 @@ const UniversalPaymentScreen: React.FC<Props> = ({ navigation, route }) => {
       transaction_id: paymentConfig.transactionId,
       merchant_order_id: paymentConfig.merchantOrderId,
       gateway_order_id: paymentConfig.orderId,
+      payment_gateway: 'razorpay',
     });
   }, [
     paymentConfig.amount,
@@ -1393,7 +1566,7 @@ const openEasebuzzCheckout = useCallback(async () => {
     verifyThroughEndpoint,
   ]);
   const startPayment = useCallback(async () => {
-    if (startedRef.current) {
+    if (showGatewayPicker || startedRef.current) {
       return;
     }
 
@@ -1414,12 +1587,20 @@ const openEasebuzzCheckout = useCallback(async () => {
         return;
       }
 
-      if (paymentConfig.razorpayKey && paymentConfig.orderId) {
-        await openRazorpayCheckout();
-        return;
-      }
+      // Resolve by the server-selected gateway first. Never let a stale Razorpay
+      // key take precedence over a PayPhi transaction.
       if (isPayPhiGateway(resolvedGatewaySlug)) {
         await openPayPhiCheckout();
+        return;
+      }
+
+      if (
+        (resolvedGatewaySlug === 'razorpay' ||
+          (!resolvedGatewaySlug && Boolean(paymentConfig.razorpayKey))) &&
+        paymentConfig.razorpayKey &&
+        paymentConfig.orderId
+      ) {
+        await openRazorpayCheckout();
         return;
       }
       if (resolvedGatewaySlug === 'easebuzz') {
@@ -1455,6 +1636,7 @@ const openEasebuzzCheckout = useCallback(async () => {
     openEasebuzzCheckout,
     openPayPhiCheckout,
     openRazorpayCheckout,
+    showGatewayPicker,
     paymentConfig.checkoutUrl,
     paymentConfig.accessKey,
     paymentConfig.merchantOrderId,
@@ -1473,8 +1655,10 @@ const openEasebuzzCheckout = useCallback(async () => {
   ]);
 
   useEffect(() => {
-    startPayment();
-  }, [startPayment]);
+    if (!showGatewayPicker) {
+      startPayment();
+    }
+  }, [showGatewayPicker, startPayment]);
 
   const onRefresh = useCallback(async () => {
     if (!paymentConfig.statusEndpoint) {
@@ -1510,7 +1694,18 @@ const openEasebuzzCheckout = useCallback(async () => {
         if (response?.status && response?.data) {
           navigation.replace('UniversalPayment', {
             type,
-            orderData: response.data,
+            orderData: {
+              ...orderData,
+              ...response.data,
+              gateway_selection_required: false,
+              gateway_selection_endpoint:
+                response.data?.gateway_selection_endpoint ||
+                paymentConfig.gatewaySelectionEndpoint,
+              available_gateways:
+                response.data?.available_gateways ||
+                orderData?.available_gateways ||
+                orderData?.gateway_options,
+            },
           });
           return;
         }
@@ -1531,6 +1726,8 @@ const openEasebuzzCheckout = useCallback(async () => {
     navigation,
     paymentConfig.isCentralized,
     paymentConfig.retryEndpoint,
+    paymentConfig.gatewaySelectionEndpoint,
+    orderData,
     showAlert,
     startPayment,
     type,
@@ -1605,6 +1802,132 @@ const openEasebuzzCheckout = useCallback(async () => {
       : 'Please stay on this screen while we complete the secure payment handshake.';
 
   const canRetry = status === 'failed' || status === 'pending';
+
+  if (showGatewayPicker) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Header title="Choose Payment Method" toHome />
+        <ScrollView contentContainerStyle={styles.content}>
+          <View
+            style={[
+              styles.heroCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                shadowColor: colors.overlay,
+              },
+            ]}
+          >
+            <View style={styles.heroCopy}>
+              <Text style={[styles.gatewayEyebrow, { color: colors.textMuted }]}>
+                SECURE CHECKOUT
+              </Text>
+              <Text style={[styles.heroTitle, { color: colors.text }]}>
+                Choose how to pay
+              </Text>
+              <Text style={[styles.heroSubtitle, { color: colors.textMuted }]}>
+                Select your preferred payment provider for this transaction.
+              </Text>
+              <Text
+                style={[
+                  styles.selectionAmount,
+                  { color: colors.text },
+                ]}
+              >
+                ₹{Number(paymentConfig.amount || 0).toFixed(2)}
+              </Text>
+              <Text style={[styles.heroSubtitle, { color: colors.textMuted }]}>
+                {type}
+              </Text>
+            </View>
+          </View>
+
+          <DetailSection
+            title="Available payment methods"
+            subtitle="Choose one gateway. Your payment order will be created securely after you continue."
+            delay={30}
+          >
+            {availableGatewayOptions.map(option => {
+              const selected = activeSelectedGateway === option.slug;
+              return (
+                <Pressable
+                  key={option.slug}
+                  disabled={selectingGateway}
+                  onPress={() => {
+                    setSelectedGateway(option.slug);
+                    setGatewaySelectionError('');
+                  }}
+                  style={[
+                    styles.gatewayOption,
+                    {
+                      backgroundColor: selected ? colors.surfaceAlt : colors.surface,
+                      borderColor: selected ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  <Icon
+                    name={selected ? 'radiobox-marked' : 'radiobox-blank'}
+                    size={23}
+                    color={selected ? colors.secondary : colors.textMuted}
+                  />
+                  <View style={styles.gatewayOptionCopy}>
+                    <Text style={[styles.gatewayOptionTitle, { color: colors.text }]}>
+                      {option.name}
+                    </Text>
+                    <Text style={[styles.gatewayOptionSubtitle, { color: colors.textMuted }]}>
+                      {option.description}
+                    </Text>
+                  </View>
+                  <Icon name={option.icon} size={24} color={selected ? colors.secondary : colors.textMuted} />
+                </Pressable>
+              );
+            })}
+
+            {availableGatewayOptions.length === 0 ? (
+              <Text style={[styles.gatewaySelectionError, { color: '#D32F2F' }]}>
+                No payment methods are currently available. Please contact the club office.
+              </Text>
+            ) : null}
+
+            {!paymentConfig.gatewaySelectionEndpoint ? (
+              <Text style={[styles.gatewaySelectionError, { color: '#D32F2F' }]}>
+                Payment selection endpoint is missing from the server response. Please contact the club office.
+              </Text>
+            ) : null}
+
+            {gatewaySelectionError ? (
+              <Text style={[styles.gatewaySelectionError, { color: '#D32F2F' }]}>
+                {gatewaySelectionError}
+              </Text>
+            ) : null}
+
+            <Pressable
+              onPress={initiateSelectedGateway}
+              disabled={
+                selectingGateway ||
+                !paymentConfig.gatewaySelectionEndpoint ||
+                availableGatewayOptions.length === 0
+              }
+              style={[
+                styles.primaryAction,
+                { backgroundColor: colors.secondary },
+                selectingGateway ? styles.disabledAction : null,
+              ]}
+            >
+              {selectingGateway ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Icon name="lock-check-outline" size={18} color="#FFFFFF" />
+              )}
+              <Text style={[styles.primaryActionText, { color: '#FFFFFF' }]}>
+                {selectingGateway ? 'Preparing secure checkout...' : 'Continue to payment'}
+              </Text>
+            </Pressable>
+          </DetailSection>
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -1723,7 +2046,43 @@ const openEasebuzzCheckout = useCallback(async () => {
             delay={130}
           >
             <View style={styles.actionRow}>
-         
+              {canRetry ? (
+                <Pressable
+                  onPress={retryPayment}
+                  disabled={retrying}
+                  style={retryActionStyle}
+                >
+                  {retrying ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Icon name="refresh" size={18} color="#FFFFFF" />
+                  )}
+                  <Text style={[styles.primaryActionText, { color: '#FFFFFF' }]}>
+                    {retrying ? 'Preparing retry...' : 'Retry payment'}
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              {status === 'failed' && paymentConfig.gatewaySelectionEndpoint ? (
+                <Pressable
+                  onPress={() => {
+                    setSelectedGateway(
+                      resolvedGatewaySlug === 'razorpay' ? 'payphi' : 'razorpay',
+                    );
+                    setGatewaySelectionError('');
+                    setShowGatewayPicker(true);
+                  }}
+                  style={[
+                    styles.secondaryAction,
+                    { backgroundColor: colors.surface, borderColor: colors.border },
+                  ]}
+                >
+                  <Icon name="swap-horizontal" size={18} color={colors.text} />
+                  <Text style={[styles.secondaryActionText, { color: colors.text }]}>
+                    Change payment method
+                  </Text>
+                </Pressable>
+              ) : null}
 
               <Pressable
                 onPress={onRefresh}
@@ -1877,7 +2236,45 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: FONT_FAMILY.medium,
   },
+  selectionAmount: {
+    fontSize: 30,
+    lineHeight: 38,
+    fontFamily: FONT_FAMILY.bold,
+    marginTop: 18,
+    marginBottom: 4,
+  },
+  gatewayOption: {
+    minHeight: 84,
+    borderWidth: 1.5,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  gatewayOptionCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  gatewayOptionTitle: {
+    fontSize: 15,
+    fontFamily: FONT_FAMILY.semiBold,
+  },
+  gatewayOptionSubtitle: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: FONT_FAMILY.regular,
+  },
+  gatewaySelectionError: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: FONT_FAMILY.medium,
+    marginBottom: 12,
+  },
 });
+
 // import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 // import {
 //   NativeModules,
@@ -1897,36 +2294,92 @@ const styles = StyleSheet.create({
 //   withSpring,
 //   withTiming,
 // } from 'react-native-reanimated';
+
 // import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 // import { NativeStackScreenProps } from '@react-navigation/native-stack';
 // import { useSelector } from 'react-redux';
 // import { useQueryClient } from '@tanstack/react-query';
-// // import InAppBrowser from 'react-native-inappbrowser-reborn';
-// import RazorpayCheckout from 'react-native-razorpay';
-// import { getway as APP_GATEWAY, APP_NAME } from '@env';
+// import InAppBrowser from 'react-native-inappbrowser-reborn';
+// import { APP_NAME, getway as APP_GATEWAY } from '@env';
 
 // import Header from '../../components/Header';
 // import DetailSection from '../../components/booking/DetailSection';
 // import PaymentSummaryCard from '../../components/payment/PaymentSummaryCard';
-// import StatusTimeline from '../../components/timeline/StatusTimeline';
-// import EmptyStateCard from '../../components/booking/EmptyStateCard';
 // import { AppStackParamList } from '../../navigation/AppDrawer';
 // import { RootState } from '../../store/store';
 // import { useAppTheme } from '../../theme/AppThemeProvider';
 // import { FONT_FAMILY } from '../../util/colors';
-// import { ENDPOINT } from '../../util/constant';
+// import { DOMAIN, ENDPOINT, NETWORK_CONSTANTS } from '../../util/constant';
 // import { javascriptGet, javascriptPost } from '../../util/api';
 // import { usePaymentStatus } from '../../hooks/usePaymentStatus';
 // import AppAlertModal from '../../components/feedback/AppAlertModal';
 // import { useAppAlert } from '../../hooks/useAppAlert';
 
 // type Props = NativeStackScreenProps<AppStackParamList, 'UniversalPayment'>;
-// type PaymentUiStatus = 'processing' | 'success' | 'failed' | 'pending';
+// type PaymentUiStatus = 'processing' | 'success' | 'failed' | 'pending' | 'Paid';
 
 // const POLL_INTERVAL_MS = 2200;
 // const POLL_ATTEMPTS = 7;
+// const PAYPHI_GATEWAY_SLUGS = new Set([
+//   'payphi',
+//   'hdfc',
+//   'hdfcbank',
+//   'hdfc_bank',
+//   'hdfc-bank',
+//   'hdfc bank',
+//   'hdfc payphi',
+//   'payphi hdfc',
+//   'hdfcpayphi',
+//   'payphihdfc',
+//   'payphi_hdfc',
+//   'hdfc_payphi',
+// ]);
 
-// const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+// const wait = (ms: number): Promise<void> =>
+//   new Promise(resolve => setTimeout(() => resolve(), ms));
+//lskjfseoriutxcmvbnvnmcx,kdljfgurteoitueorijdfhgvnmcxx,mncvkjdfieutuitorefhjkdjsm,nxcvnv,cmkjdflkdjgiroeutnvfjrieokdmc
+// const isBlankGatewayText = (value?: any) => {
+//   const normalized = String(value || '').trim().toLowerCase();
+//   return !normalized || normalized === 'undefined' || normalized === 'null';
+// };
+
+// const pickFirstValue = (...values: any[]) =>
+//   values.find(value => !isBlankGatewayText(value)) ?? null;
+
+// const normalizeGatewayValue = (value?: any) =>
+//   String(value || '')
+//     .replace(/['"]/g, '')
+//     .trim()
+//     .toLowerCase();
+
+// const isPayPhiGateway = (value?: any) =>
+//   PAYPHI_GATEWAY_SLUGS.has(normalizeGatewayValue(value));
+
+// const normalizePayPhiEnv = (value?: any) => {
+//   const normalized = normalizeGatewayValue(value);
+
+//   if (normalized === 'prod' || normalized === 'production' || normalized === 'live') {
+//     return 'PROD';
+//   }
+
+//   if (normalized === 'preprod' || normalized === 'pre-prod') {
+//     return 'PREPROD';
+//   }
+
+//   if (normalized === 'qa') {
+//     return 'QA';
+//   }
+
+//   if (normalized === 'dev' || normalized === 'development') {
+//     return 'DEV';
+//   }
+
+//   if (normalized === 'test' || normalized === 'sandbox' || normalized === 'int') {
+//     return 'INT';
+//   }
+
+//   return 'INT';
+// };
 
 // const parseSdkResponse = (value: any) => {
 //   if (typeof value !== 'string') {
@@ -1940,64 +2393,187 @@ const styles = StyleSheet.create({
 //   }
 // };
 
-// const normalizePaymentError = (error: any) => {
-//   if (!error) {
-//     return {};
-//   }
+// const normalizePayPhiResponse = (value: any) => {
+//   const parsed = parseSdkResponse(value);
 
-//   if (typeof error === 'string') {
-//     return { description: error, message: error };
-//   }
-
-//   return error?.error || error?.details?.error || error?.details || error;
-// };
-
-// const isBlankGatewayText = (value?: any) => {
-//   const normalized = String(value || '').trim().toLowerCase();
-//   return !normalized || normalized === 'undefined' || normalized === 'null';
-// };
-
-// const getPaymentFailureMessage = (error: any, fallback = 'Payment could not be completed.') => {
-//   const normalized = normalizePaymentError(error);
-//   const message =
-//     normalized?.description ||
-//     normalized?.message ||
-//     normalized?.reason ||
-//     error?.description ||
-//     error?.message;
-
-//   return isBlankGatewayText(message) ? fallback : String(message);
-// };
-
-// const isPaymentCancelledByUser = (error: any) => {
-//   const normalized = normalizePaymentError(error);
-//   const searchable = [
-//     normalized?.code,
-//     normalized?.description,
-//     normalized?.message,
-//     normalized?.reason,
-//     normalized?.source,
-//     normalized?.step,
-//     error?.code,
-//     error?.description,
-//     error?.message,
-//   ]
-//     .filter(value => value !== undefined && value !== null)
-//     .map(value => String(value).toLowerCase());
-
+//   // The iOS bridge adds its native callback result code; it is not a PayPhi field.
 //   if (
-//     normalized?.code === 0 ||
-//     error?.code === 0 ||
-//     searchable.some(value => value.includes('cancel') || value.includes('dismiss') || value.includes('closed'))
+//     parsed &&
+//     typeof parsed === 'object' &&
+//     !Array.isArray(parsed) &&
+//     typeof parsed.resultCode === 'number'
 //   ) {
-//     return true;
+//     const gatewayResponse = { ...parsed };
+//     delete gatewayResponse.resultCode;
+//     return gatewayResponse;
+//   }
+
+//   return parsed;
+// };
+
+// const postPayPhiVerification = async (
+//   path: string,
+//   body: Record<string, any>,
+//   token?: string,
+// ) => {
+//   const controller = new AbortController();
+//   const timeoutId = setTimeout(
+//     () => controller.abort(),
+//     NETWORK_CONSTANTS.connectionTimeout,
+//   );
+
+//   try {
+//     const response = await fetch(`${DOMAIN.BASE}${path}`, {
+//       method: 'POST',
+//       headers: {
+//         Accept: 'application/json',
+//         'Content-Type': 'application/json',
+//         Authorization: `Bearer ${token || ''}`,
+//       },
+//       body: JSON.stringify(body),
+//       signal: controller.signal,
+//     });
+
+//     const responseBody = await response.json().catch(() => null);
+//     if (!response.ok || !responseBody) {
+//       return {
+//         status: false,
+//         message: responseBody?.message || response.statusText,
+//       };
+//     }
+
+//     return responseBody;
+//   } finally {
+//     clearTimeout(timeoutId);
+//   }
+// };
+
+// const isPayPhiVerificationSuccessful = (response: any) => {
+//   const result = response?.data ?? response;
+//   const statuses = [
+//     response?.status,
+//     result?.status,
+//     result?.payment_status,
+//     result?.paymentStatus,
+//   ];
+
+//   return (
+//     response?.success === true ||
+//     result?.success === true ||
+//     statuses.some(
+//       value =>
+//         value === true ||
+//         ['success', 'paid'].includes(String(value || '').toLowerCase()),
+//     )
+//   );
+// };
+
+// const getPayPhiSdk = () => {
+//   const module = require('react-native-payphi-sdk');
+//   return module?.default || module;
+// };
+
+// const launchPayPhiPayment = (paymentPayload: Record<string, any>) =>
+//   new Promise<any>((resolve, reject) => {
+//     let settled = false;
+//     let subscription: { remove: () => void } | null = null;
+//     const PayphiSdk = getPayPhiSdk();
+
+//     const cleanup = () => {
+//       if (subscription) {
+//         subscription.remove();
+//         subscription = null;
+//       }
+//     };
+
+//     const settle = (handler: (value?: any) => void, value?: any) => {
+//       if (settled) {
+//         return;
+//       }
+
+//       settled = true;
+//       cleanup();
+//       handler(value);
+//     };
+
+//     try {
+//       subscription = PayphiSdk.addPaymentResponseListener((response: any) => {
+//         settle(resolve, normalizePayPhiResponse(response));
+//       });
+
+//       PayphiSdk.makePayment(paymentPayload);
+//     } catch (error) {
+//       settle(reject, error);
+//     }
+//   });
+
+// const extractGatewayResponseValue = (response: any, keys: string[], fallback = '') => {
+//     const parsed = response && typeof response === 'object' ? response : {};
+
+//   for (const key of keys) {
+//     if (!isBlankGatewayText(parsed?.[key])) {
+//       return String(parsed[key]).trim();
+//     }
+//   }
+
+//   return fallback;
+// };
+
+// const isPayPhiSuccessResponse = (response: any) => {
+//   const responseCode = extractGatewayResponseValue(
+//     response,
+//     ['responseCode', 'txnResponseCode', 'txnStatus', 'status'],
+//   ).toLowerCase();
+//   const resultType = extractGatewayResponseValue(
+//     response,
+//     ['ResultType', 'resultType', 'paymentStatus'],
+//   ).toUpperCase();
+//   const message = extractGatewayResponseValue(
+//     response,
+//     ['respDescription', 'txnRespDescription', 'ResultMessage', 'message', 'statusMessage'],
+//   ).toLowerCase();
+
+//   return (
+//     ['0000', '000', 'success', 'paid'].includes(responseCode) ||
+//     resultType === 'SUCCESS' ||
+//     resultType === 'COMPLETED' ||
+//     message.includes('success')
+//   );
+// };
+
+// const isPayPhiPendingResponse = (response: any) => {
+//   const responseCode = extractGatewayResponseValue(
+//     response,
+//     ['responseCode', 'txnResponseCode', 'txnStatus', 'status'],
+//   ).toLowerCase();
+//   const resultType = extractGatewayResponseValue(
+//     response,
+//     ['ResultType', 'resultType', 'paymentStatus'],
+//   ).toLowerCase();
+
+//   return (
+//     responseCode === 'r1000' ||
+//     responseCode.includes('pending') ||
+//     responseCode.includes('process') ||
+//     resultType.includes('pending') ||
+//     resultType.includes('process')
+//   );
+// };
+
+// const getPayPhiFailureMessage = (response: any, fallback = 'Payment failed') => {
+//   if (typeof response === 'string') {
+//     return response;
 //   }
 
 //   return (
-//     String(normalized?.code || '').toUpperCase() === 'BAD_REQUEST_ERROR' &&
-//     isBlankGatewayText(normalized?.description) &&
-//     String(normalized?.source || '').toLowerCase() === 'customer' &&
-//     String(normalized?.step || '').toLowerCase() === 'payment_authentication'
+//     extractGatewayResponseValue(response, [
+//       'respDescription',
+//       'txnRespDescription',
+//       'ResultMessage',
+//       'message',
+//       'statusMessage',
+//       'error',
+//     ]) || fallback
 //   );
 // };
 
@@ -2061,6 +2637,7 @@ const styles = StyleSheet.create({
 //   const queryClient = useQueryClient();
 //   const userData = useSelector((state: RootState) => state.auth);
 //   const { orderData, type } = route.params;
+// console.log( orderData, '---------------------- orderData ---------------------');
 //   const startedRef = useRef(false);
 //   const pollingRef = useRef(false);
 //   const scale = useSharedValue(0.92);
@@ -2090,7 +2667,6 @@ const styles = StyleSheet.create({
 //       orderData?.merchant_order_id ||
 //       orderData?.txnid ||
 //       orderData?.order_id;
-
 //     return {
 //       amount: Number(orderData?.amount || 0),
 //       orderId: orderData?.order_id,
@@ -2152,7 +2728,7 @@ const styles = StyleSheet.create({
 //         setPhase(nextPhase);
 //       }
 
-//       if (nextStatus === 'success') {
+//       if (nextStatus === 'Paid' || nextStatus === 'success') {
 //         scale.value = withSpring(1, { damping: 9, stiffness: 120 });
 //         opacity.value = withTiming(1, { duration: 320 });
 //         translateY.value = withTiming(0, { duration: 360 });
@@ -2188,22 +2764,32 @@ const styles = StyleSheet.create({
 //       }
 
 //       try {
-//         await javascriptPost({
-//           path: paymentConfig.verifyEndpoint,
-//           body: {
-//             razorpay_order_id: paymentConfig.orderId,
-//             razorpay_payment_id: null,
-//             razorpay_signature: null,
-//             status: false,
-//             failure_reason: reason || 'Payment failed',
-//           },
-//           Token: userData?.token,
-//         });
+//         const body = {
+//           razorpay_order_id: paymentConfig.orderId,
+//           razorpay_payment_id: null,
+//           razorpay_signature: null,
+//           status: false,
+//           failure_reason: reason || 'Payment failed',
+//         };
+
+//         if (isPayPhiGateway(resolvedGatewaySlug)) {
+//           await postPayPhiVerification(
+//             paymentConfig.verifyEndpoint,
+//             body,
+//             userData?.token,
+//           );
+//         } else {
+//           await javascriptPost({
+//             path: paymentConfig.verifyEndpoint,
+//             body,
+//             Token: userData?.token,
+//           });
+//         }
 //       } catch (error) {
-//         console.log('Failure sync error', error);
+//         // Preserve the original gateway result if failure synchronization fails.
 //       }
 //     },
-//     [paymentConfig, userData?.token],
+//     [paymentConfig, resolvedGatewaySlug, userData?.token],
 //   );
 
 //   const applyStatusPayload = useCallback(
@@ -2215,10 +2801,10 @@ const styles = StyleSheet.create({
 //       setStatusPayload(payload);
 
 //       const nextUiStatus = mapStatusToUi(
-//         payload?.payment_status_code || payload?.payment_status,
+//        payload?.payment_status,
 //       );
 //       const nextPhase =
-//         nextUiStatus === 'success'
+//         nextUiStatus === 'success'|| nextUiStatus === 'Paid'
 //           ? 'Payment verified successfully'
 //           : nextUiStatus === 'failed'
 //           ? 'Payment could not be completed'
@@ -2228,11 +2814,11 @@ const styles = StyleSheet.create({
 //       setLoading(false);
 //       setRefreshing(false);
 
-//       if (nextUiStatus === 'success') {
+//       if (nextUiStatus === 'success' || nextUiStatus === 'Paid') {
 //         invalidateRelatedQueries();
 //       }
 
-//       return isTerminalStatus(payload?.payment_status_code || payload?.payment_status);
+//       return isTerminalStatus(payload?.payment_status);
 //     },
 //     [invalidateRelatedQueries, setOutcomeState],
 //   );
@@ -2241,12 +2827,12 @@ const styles = StyleSheet.create({
 //     if (!paymentConfig.statusEndpoint) {
 //       return null;
 //     }
-
+  
 //     const response = await javascriptGet({
 //       path: paymentConfig.statusEndpoint,
 //       Token: userData?.token,
 //     });
-
+//     console.log( response, '---------------------- response ---------------------');
 //     if (response?.status && response?.data) {
 //       applyStatusPayload(response.data);
 //     }
@@ -2270,24 +2856,36 @@ const styles = StyleSheet.create({
 //       if (!paymentConfig.verifyEndpoint) {
 //         return null;
 //       }
-//       console.log( paymentConfig.verifyEndpoint, '---------------------- apiRes ---------------------');
 
-//       const apiRes = await javascriptPost({
-//         path: paymentConfig.verifyEndpoint,
-//         body: {
-//           transaction_id: paymentConfig.transactionId,
-//           merchant_order_id: paymentConfig.merchantOrderId,
-//           gateway_order_id: paymentConfig.orderId,
-//           order_id: paymentConfig.orderId,
-//           status_reference: paymentConfig.statusReference,
-//           ...payload,
-//         },
-//         Token: userData?.token,
-//       });
-// console.log( apiRes, '---------------------- apiRes ---------------------');
+//       const requestBody = {
+//         transaction_id: paymentConfig.transactionId,
+//         merchant_order_id: paymentConfig.merchantOrderId,
+//         gateway_order_id: paymentConfig.orderId,
+//         order_id: paymentConfig.orderId,
+//         status_reference: paymentConfig.statusReference,
+//         ...payload,
+//       };
+//       const apiRes =
+//         payload.payment_gateway === 'payphi'
+//           ? await postPayPhiVerification(
+//               paymentConfig.verifyEndpoint,
+//               requestBody,
+//               userData?.token,
+//             )
+//           : await javascriptPost({
+//               path: paymentConfig.verifyEndpoint,
+//               body: requestBody,
+//               Token: userData?.token,
+//             });
+
 //       setPaymentResult(apiRes?.data || apiRes || null);
 
-//       if (apiRes?.success || apiRes?.status) {
+//       const verificationSucceeded =
+//         payload.payment_gateway === 'payphi'
+//           ? isPayPhiVerificationSuccessful(apiRes)
+//           : Boolean(apiRes?.success || apiRes?.status);
+
+//       if (verificationSucceeded) {
 //         setOutcomeState('success', 'Payment verified successfully');
 //         invalidateRelatedQueries();
 //         routeAfterSuccess(apiRes);
@@ -2317,6 +2915,7 @@ const styles = StyleSheet.create({
 //       if (!paymentConfig.verifyEndpoint) {
 //         throw new Error('Missing verify endpoint');
 //       }
+
 //       return finalizeThroughEndpoint(payload);
 //     },
 //     [finalizeThroughEndpoint, paymentConfig.verifyEndpoint],
@@ -2388,7 +2987,7 @@ const styles = StyleSheet.create({
 //         for (let attempt = 0; attempt < attempts; attempt += 1) {
 //           const response = await fetchTransactionStatus();
 //           const currentStatus =
-//             response?.data?.payment_status_code || response?.data?.payment_status;
+//             response?.data?.payment_status;
 
 //           if (isTerminalStatus(currentStatus)) {
 //             if (
@@ -2420,11 +3019,13 @@ const styles = StyleSheet.create({
 //   );
 
 //   const openHostedCheckout = useCallback(async () => {
+  
 //     if (!paymentConfig.checkoutUrl) {
 //       throw new Error('Missing hosted checkout url');
 //     }
 
 //     setPhase('Opening secure hosted checkout');
+
 
 //     if (await InAppBrowser.isAvailable()) {
 //       await InAppBrowser.open(paymentConfig.checkoutUrl, {
@@ -2463,15 +3064,15 @@ const styles = StyleSheet.create({
 //   ]);
 
 //   const openRazorpayCheckout = useCallback(async () => {
-// console.log( paymentConfig.razorpayKey,'---------------------- paymentConfig.razorpayKey, ---------------------');
+//     const RazorpayModule = require('react-native-razorpay');
+//     const RazorpayCheckout = RazorpayModule.default || RazorpayModule;
+
 //     const options = {
 //       key: paymentConfig.razorpayKey,
 //       order_id: paymentConfig.orderId,
 //       amount: Math.round(paymentConfig.amount * 100),
 //       currency: 'INR',
-//       name: APP_NAME,
-      
-//        image: "https://www.lgc.in/wp-content/uploads/2026/01/lgclogo.png",
+//       name: paymentConfig.gatewayName,
 //       description: type,
 //       prefill: {
 //         name: userData?.user?.DisplayName,
@@ -2479,40 +3080,24 @@ const styles = StyleSheet.create({
 //         contact: userData?.user?.Mobile,
 //       },
 //       theme: {
-//         color: colors.primary,
-        
+//         color: paymentConfig.brandColor,
 //       },
 //       notes: {
 //         MemberID: userData?.user?.MemberID || '',
 //         SC_ID: userData?.user?.SC_ID || '',
 //         BookingType: type,
 //       },
-      
-      
 //     };
 
 //     setPhase('Opening native payment checkout');
-//     console.log( options, '---------------------- result ---------------------');
-//     try {
-//       const result = await RazorpayCheckout.open(options);
-//       return verifyThroughEndpoint({
-//         ...result,
-//         transaction_id: paymentConfig.transactionId,
-//         merchant_order_id: paymentConfig.merchantOrderId,
-//         gateway_order_id: paymentConfig.orderId,
-//       });
-//     } catch (error: any) {
-//       console.error(error)
-//       if (isPaymentCancelledByUser(error)) {
-//         const message = 'Payment cancelled by user. You can retry whenever you are ready.';
-//         setErrorMessage(message);
-//         setOutcomeState('failed', 'Payment cancelled');
-//         setLoading(false);
-//         return null;
-//       }
+//     const result = await RazorpayCheckout.open(options);
 
-//       throw new Error(getPaymentFailureMessage(error));
-//     }
+//     return verifyThroughEndpoint({
+//       ...result,
+//       transaction_id: paymentConfig.transactionId,
+//       merchant_order_id: paymentConfig.merchantOrderId,
+//       gateway_order_id: paymentConfig.orderId,
+//     });
 //   }, [
 //     paymentConfig.amount,
 //     paymentConfig.brandColor,
@@ -2527,9 +3112,453 @@ const styles = StyleSheet.create({
 //     userData?.user?.MemberID,
 //     userData?.user?.Mobile,
 //     userData?.user?.SC_ID,
-//     setOutcomeState,
 //     verifyThroughEndpoint,
 //   ]);
+
+// const openPayPhiCheckout = useCallback(async () => {
+
+
+  
+//   const checkout = orderData?.checkout || {};
+
+//   const gateway =
+//     typeof orderData?.gateway === 'object'
+//       ? orderData.gateway
+//       : {};
+
+//   const payphi =
+//     checkout?.payphi ||
+//     checkout?.payPhi ||
+//     gateway?.payphi ||
+//     gateway?.payPhi ||
+//     orderData?.payphi ||
+//     orderData?.payPhi ||
+//     {};
+
+//   /*
+//    * -----------------------------------------
+//    * PayPhi transaction details
+//    * -----------------------------------------
+//    */
+
+//   const amount = Number(
+//     payphi?.amount ||
+//       paymentConfig.amount ||
+//       orderData?.amount ||
+//       0,
+//   );
+
+//   const merchantTxnNo = pickFirstValue(
+//     payphi?.merchant_txn_no,
+//     payphi?.merchantTxnNo,
+//     checkout?.merchant_txn_no,
+//     checkout?.merchantTxnNo,
+//     checkout?.merchant_order_id,
+//     checkout?.merchantOrderId,
+//     checkout?.order_id,
+//     checkout?.orderId,
+//     paymentConfig.merchantOrderId,
+//     paymentConfig.orderId,
+//     paymentConfig.statusReference,
+//   );
+
+//   /*
+//    * -----------------------------------------
+//    * PayPhi merchant ID
+//    * -----------------------------------------
+//    */
+
+//   const merchantId = pickFirstValue(
+//     payphi?.merchant_id,
+//     payphi?.merchantId,
+//     checkout?.merchant_id,
+//     checkout?.merchantId,
+//     gateway?.merchant_id,
+//     gateway?.merchantId,
+//     orderData?.merchant_id,
+//     orderData?.merchantId,
+//   );
+
+//   /*
+//    * -----------------------------------------
+//    * PayPhi App ID
+//    * -----------------------------------------
+//    */
+
+//   const appId = pickFirstValue(
+//     payphi?.app_id,
+//     payphi?.appId,
+//     checkout?.app_id,
+//     checkout?.appId,
+//     gateway?.app_id,
+//     gateway?.appId,
+//     orderData?.app_id,
+//     orderData?.appId,
+//   );
+
+//   /*
+//    * -----------------------------------------
+//    * Aggregator ID
+//    * -----------------------------------------
+//    *
+//    * When supplied, PayPhi uses the aggregator ID for SDK initialization
+//    * and passes it in the payment request.
+//    */
+
+//   const aggregatorId = pickFirstValue(
+//     payphi?.aggregator_id,
+//     payphi?.aggregatorId,
+//     payphi?.aggregatorID,
+//     checkout?.aggregator_id,
+//     checkout?.aggregatorId,
+//     checkout?.aggregatorID,
+//     gateway?.aggregator_id,
+//     gateway?.aggregatorId,
+//     gateway?.aggregatorID,
+//     orderData?.aggregator_id,
+//     orderData?.aggregatorId,
+//     orderData?.aggregatorID,
+//     '',
+//   );
+
+//   /*
+//    * -----------------------------------------
+//    * Currency
+//    * -----------------------------------------
+//    */
+
+//   const currencyCode = String(
+//     pickFirstValue(
+//       payphi?.currency_code,
+//       payphi?.currencyCode,
+//       checkout?.currency_code,
+//       checkout?.currencyCode,
+//       orderData?.currency_code,
+//       orderData?.currencyCode,
+//       '356',
+//     ),
+//   );
+
+//   /*
+//    * -----------------------------------------
+//    * PayPhi API version
+//    * -----------------------------------------
+//    */
+
+//   const apiVersion = String(
+//     pickFirstValue(
+//       payphi?.api_version,
+//       payphi?.apiVersion,
+//       checkout?.api_version,
+//       checkout?.apiVersion,
+//       '4',
+//     ),
+//   );
+
+//   /*
+//    * -----------------------------------------
+//    * PayPhi Environment
+//    * -----------------------------------------
+//    */
+
+// const environment = normalizePayPhiEnv(
+//   pickFirstValue(
+//     payphi?.environment,
+//     checkout?.environment,
+//     paymentConfig.environment,
+//     'UAT',
+//   ),
+// );
+//   /*
+//    * -----------------------------------------
+//    * Merchant Name
+//    * -----------------------------------------
+//    */
+
+//   const merchantName = String(
+//     pickFirstValue(
+//       payphi?.merchant_name,
+//       payphi?.merchantName,
+//       checkout?.merchant_name,
+//       checkout?.merchantName,
+//       gateway?.merchant_name,
+//       gateway?.merchantName,
+//       APP_NAME,
+//       paymentConfig.gatewayName,
+//       'PayPhi',
+//     ),
+//   );
+
+//   /*
+//    * -----------------------------------------
+//    * Customer Email
+//    * -----------------------------------------
+//    */
+
+//   const customerEmailID = String(
+//     pickFirstValue(
+//       payphi?.customer_email,
+//       payphi?.customerEmail,
+//       payphi?.customerEmailID,
+//       checkout?.customer_email,
+//       checkout?.customerEmail,
+//       checkout?.customerEmailID,
+//       userData?.user?.Email,
+//       'test@example.com',
+//     ),
+//   );
+
+//   /*
+//    * -----------------------------------------
+//    * Validate required fields
+//    * -----------------------------------------
+//    */
+
+//   if (
+//     !merchantId ||
+//     !appId ||
+//     !merchantTxnNo ||
+//     !amount ||
+//     !payphi?.secretKey
+//   ) {
+//     if (paymentConfig.checkoutUrl) {
+//       await openHostedCheckout();
+//       return;
+//     }
+
+//     throw new Error(
+//       'PayPhi configuration is incomplete.',
+//     );
+//   }
+
+//   /*
+//    * -----------------------------------------
+//    * Load PayPhi SDK
+//    * -----------------------------------------
+//    */
+
+//   const PayphiSdk = getPayPhiSdk();
+
+//   if (
+//     typeof PayphiSdk?.setAppInfo !== 'function' ||
+//     typeof PayphiSdk?.makePayment !== 'function' ||
+//     typeof PayphiSdk?.addPaymentResponseListener !== 'function'
+//   ) {
+//     throw new Error(
+//       'PayPhi SDK is not properly initialized.',
+//     );
+//   }
+
+//   /*
+//    * -----------------------------------------
+//    * SDK merchant ID
+//    * -----------------------------------------
+//    */
+
+//   const sdkMerchantId = aggregatorId
+//     ? String(aggregatorId)
+//     : String(merchantId);
+
+//   /*
+//    * -----------------------------------------
+//    * Initialize PayPhi SDK
+//    * -----------------------------------------
+//    */
+
+//   setPhase('Opening PayPhi secure checkout');
+
+//   await PayphiSdk.setAppInfo(
+//     environment,
+//     sdkMerchantId,
+//     appId,
+//     merchantName,
+//   );
+
+//   /*
+//    * -----------------------------------------
+//    * Start PayPhi payment
+//    * -----------------------------------------
+//    */
+//   const response = await launchPayPhiPayment({
+//     amount: amount.toFixed(2),
+//     merchantId: String(merchantId),
+//     merchantTxnNo: String(merchantTxnNo),
+//     currencyCode,
+//     customerEmailID,
+//     secretKey: payphi.secretKey,
+//     addlParam1: 
+//       userData?.user?.SC_ID
+//     ,
+
+//     addlParam2: userData?.user?.DisplayName,
+
+//     aggregatorID: aggregatorId
+//       ? String(aggregatorId)
+//       : '',
+
+//     apiVersion,
+//   });
+
+//   setPaymentResult(response);
+
+//   /*
+//    * -----------------------------------------
+//    * Pending
+//    * -----------------------------------------
+//    */
+
+//   if (isPayPhiPendingResponse(response)) {
+//     if (paymentConfig.statusEndpoint) {
+//       await pollForFinalStatus();
+//       return;
+//     }
+
+//     setOutcomeState(
+//       'pending',
+//       'Payment is waiting for final confirmation',
+//     );
+
+//     setLoading(false);
+//     return;
+//   }
+
+//   /*
+//    * -----------------------------------------
+//    * Failure
+//    * -----------------------------------------
+//    */
+
+//   if (!isPayPhiSuccessResponse(response)) {
+//     const message =
+//       getPayPhiFailureMessage(response);
+
+//     await syncLegacyFailure(message);
+
+//     setErrorMessage(message);
+
+//     setOutcomeState(
+//       'failed',
+//       message,
+//     );
+
+//     setLoading(false);
+//     return;
+//   }
+
+//   /*
+//    * -----------------------------------------
+//    * Success
+//    * -----------------------------------------
+//    */
+
+//   const gatewayTransactionId = pickFirstValue(
+//     response?.txnAuthID,
+//     response?.gatewayTransactionId,
+//     response?.txnID,
+//     response?.paymentID,
+//     response?.invoiceNo,
+//     merchantTxnNo,
+//   );
+
+//   const responseCode = pickFirstValue(
+//     response?.responseCode,
+//     response?.txnResponseCode,
+//     response?.txnStatus,
+//     response?.status,
+//   );
+
+//   /*
+//    * -----------------------------------------
+//    * Verify payment on backend
+//    * -----------------------------------------
+//    */
+
+//   if (paymentConfig.verifyEndpoint) {
+//     await verifyThroughEndpoint({
+//       payment_gateway: 'payphi',
+//       transaction_id:
+//         paymentConfig.transactionId,
+
+//       merchant_order_id:
+//         merchantTxnNo,
+
+//       gateway_order_id:
+//         gatewayTransactionId ||
+//         merchantTxnNo,
+
+//       order_id:
+//         merchantTxnNo,
+
+//       status_reference:
+//         paymentConfig.statusReference,
+
+//       gateway_transaction_id:
+//         gatewayTransactionId,
+
+//       response_code:
+//         responseCode,
+
+//       payphi_response:
+//         response,
+
+//       payment_response:
+//         response,
+
+//       transaction_response:
+//         response,
+
+//       result:
+//         response,
+//     });
+
+//     return;
+//   }
+
+//   /*
+//    * -----------------------------------------
+//    * Poll final status
+//    * -----------------------------------------
+//    */
+
+//   if (paymentConfig.statusEndpoint) {
+//     await pollForFinalStatus(3);
+//     return;
+//   }
+
+//   /*
+//    * -----------------------------------------
+//    * Final success
+//    * -----------------------------------------
+//    */
+
+//   setOutcomeState(
+//     'success',
+//     'Payment completed successfully',
+//   );
+
+//   setLoading(false);
+
+//   invalidateRelatedQueries();
+// }, [
+//   invalidateRelatedQueries,
+//   openHostedCheckout,
+//   orderData,
+//   paymentConfig.amount,
+//   paymentConfig.checkoutUrl,
+//   paymentConfig.environment,
+//   paymentConfig.gatewayName,
+//   paymentConfig.merchantOrderId,
+//   paymentConfig.orderId,
+//   paymentConfig.statusEndpoint,
+//   paymentConfig.statusReference,
+//   paymentConfig.transactionId,
+//   paymentConfig.verifyEndpoint,
+//   pollForFinalStatus,
+//   setOutcomeState,
+//   syncLegacyFailure,
+//   userData?.user?.Email,
+//   verifyThroughEndpoint,
+// ]);
 
 //   const openCashfreeCheckout = useCallback(async () => {
 //     const paymentSessionId =
@@ -2649,7 +3678,7 @@ const styles = StyleSheet.create({
 //     scale.value = 0.92;
 //     opacity.value = 0;
 //     translateY.value = 18;
-// console.log( paymentConfig.razorpayKey ,paymentConfig.orderId, '---------------------- paymentConfig.razorpayKey && paymentConfig.orderId ---------------------');
+
 //     try {
 //       if (
 //         resolvedGatewaySlug === 'cashfree' &&
@@ -2662,6 +3691,10 @@ const styles = StyleSheet.create({
 
 //       if (paymentConfig.razorpayKey && paymentConfig.orderId) {
 //         await openRazorpayCheckout();
+//         return;
+//       }
+//       if (isPayPhiGateway(resolvedGatewaySlug)) {
+//         await openPayPhiCheckout();
 //         return;
 //       }
 //       if (resolvedGatewaySlug === 'easebuzz') {
@@ -2680,17 +3713,7 @@ const styles = StyleSheet.create({
 
 //       throw new Error('This payment payload is missing checkout metadata.');
 //     } catch (error: any) {
-//       const message = getPaymentFailureMessage(error, 'Payment could not be started.');
-
-//       if (isPaymentCancelledByUser(error)) {
-//         const cancelMessage = 'Payment cancelled by user. You can retry whenever you are ready.';
-//         setErrorMessage(cancelMessage);
-//         setOutcomeState('failed', 'Payment cancelled');
-//         setLoading(false);
-//         return;
-//       }
-
-//       console.log( message, '---------------------- message ---------------------');
+//       const message = error?.description || error?.message || 'Payment could not be started.';
 //       await syncLegacyFailure(message);
 //       setErrorMessage(message);
 //       setOutcomeState('failed', 'Payment flow was interrupted');
@@ -2705,6 +3728,7 @@ const styles = StyleSheet.create({
 //     openCashfreeCheckout,
 //     openHostedCheckout,
 //     openEasebuzzCheckout,
+//     openPayPhiCheckout,
 //     openRazorpayCheckout,
 //     paymentConfig.checkoutUrl,
 //     paymentConfig.accessKey,
@@ -2792,7 +3816,7 @@ const styles = StyleSheet.create({
 //     const statusText =
 //       paymentResult?.Status ||
 //       statusPayload?.payment_status ||
-//       (status === 'success'
+//       (status === 'Paid' 
 //         ? 'Success'
 //         : status === 'failed'
 //         ? 'Failed'
@@ -2804,7 +3828,7 @@ const styles = StyleSheet.create({
 //       gateway_name: statusPayload?.gateway_name || paymentConfig.gatewayName,
 //       status: statusText,
 //       payment_status: statusText,
-//       status_code: statusPayload?.payment_status_code || status,
+//       status_code:  status,
 //       amount:
 //         paymentResult?.paid_amount ||
 //         statusPayload?.amount ||
@@ -2837,12 +3861,9 @@ const styles = StyleSheet.create({
 //     [colors.primary, retrying],
 //   );
 
-//   const paymentWasCancelled = status === 'failed' && phase === 'Payment cancelled';
 //   const headline =
-//     status === 'success'
+//     status === 'Paid' || status === 'success'
 //       ? 'Payment successful'
-//       : paymentWasCancelled
-//       ? 'Payment cancelled'
 //       : status === 'failed'
 //       ? 'Payment failed'
 //       : status === 'pending'
@@ -2890,7 +3911,7 @@ const styles = StyleSheet.create({
 //               { backgroundColor: statusTone.background, borderColor: statusTone.border },
 //             ]}
 //           >
-//             {status === 'processing' || loading ? (
+//             {status === 'processing'|| status=== 'Paid' || loading ? (
 //               <LottieView
 //                 autoPlay
 //                 loop
@@ -2956,7 +3977,20 @@ const styles = StyleSheet.create({
 //             />
 //           </DetailSection>
 
-       
+//           {/* <DetailSection
+//             title="Tracking Timeline"
+//             subtitle="Follow the processing steps from initiation to final confirmation."
+//             delay={90}
+//           >
+//             {paymentTimeline.length ? (
+//               <StatusTimeline items={paymentTimeline} />
+//             ) : (
+//               <EmptyStateCard
+//                 title="Timeline will appear after verification"
+//                 description="As soon as the gateway updates the transaction, you will see each payment milestone here."
+//               />
+//             )}
+//           </DetailSection> */}
 
 //           <DetailSection
 //             title="Actions"
@@ -2964,18 +3998,7 @@ const styles = StyleSheet.create({
 //             delay={130}
 //           >
 //             <View style={styles.actionRow}>
-//               {canRetry ? (
-//                 <Pressable
-//                   onPress={retryPayment}
-//                   disabled={retrying}
-//                   style={retryActionStyle}
-//                 >
-//                   <Icon name="refresh" size={18} color={colors.onPrimary} />
-//                   <Text style={[styles.primaryActionText, { color: colors.onPrimary }]}>
-//                     {retrying ? 'Retrying...' : 'Retry payment'}
-//                   </Text>
-//                 </Pressable>
-//               ) : null}
+         
 
 //               <Pressable
 //                 onPress={onRefresh}

@@ -22,7 +22,18 @@ export interface HomeDashboardSummary {
   latitude?: number | string | null;
   longitude?: number | string | null;
   radius?: number | string | null;
+             app_card_image?:string|null;
+
 }
+export interface AppBannerItem {
+  id: string | number;
+  image: string;
+  title?: string;
+  sub_title?: string;
+  navigation?: string;
+  data?: any;
+}
+
 
 export interface HomeDashboardCard {
   label: string;
@@ -94,6 +105,33 @@ const useDashboardData = ({
         path: ENDPOINT.financial_home_dashboard,
         Token: token ?? '',
       }),
+    enabled: !!token,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+};
+export const useAppBanner = ({
+  token,
+}: UseDashboardDataParams): UseQueryResult<ApiResponse<AppBannerItem[]>, unknown> => {
+  return useQuery({
+    queryKey: ['member-app-banner', token],
+    queryFn: async () => {
+      const response = await javascriptGet<AppBannerItem[] | { data?: AppBannerItem[] }>({
+        path: 'member/app-banner',
+        Token: token ?? '',
+      });
+      const payload = response.data;
+      const banners = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : [];
+
+      return {
+        ...response,
+        data: banners,
+      };
+    },
     enabled: !!token,
     retry: 1,
     refetchOnWindowFocus: false,
